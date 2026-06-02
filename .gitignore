@@ -1,0 +1,5 @@
+.ansible/
+.venv/
+*.retry
+.DS_Store
+__pycache__/
