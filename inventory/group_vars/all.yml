@@ -29,6 +29,8 @@ concierge_env:
   SLACK_SIGNING_SECRET: "{{ lookup('env', 'SLACK_SIGNING_SECRET') | default(lookup('env', 'CONCIERGE_SLACK_SIGNING_SECRET'), true) | default('', true) }}"
   SLACK_REQUESTS_CHANNEL_ID: "{{ lookup('env', 'SLACK_REQUESTS_CHANNEL_ID') | default(lookup('env', 'CONCIERGE_SLACK_REQUESTS_CHANNEL_ID'), true) | default('', true) }}"
   SLACK_USER_IDS: "{{ lookup('env', 'SLACK_USER_IDS') | default(lookup('env', 'CONCIERGE_SLACK_USER_IDS'), true) | default('', true) }}"
+  SLACK_MANAGER_IDS: "{{ lookup('env', 'SLACK_MANAGER_IDS') | default(lookup('env', 'CONCIERGE_SLACK_MANAGER_IDS'), true) | default('', true) }}"
+  SLACK_ADMIN_IDS: "{{ lookup('env', 'SLACK_ADMIN_IDS') | default(lookup('env', 'CONCIERGE_SLACK_ADMIN_IDS'), true) | default('', true) }}"
   SLACK_APP_TOKEN: "{{ lookup('env', 'SLACK_APP_TOKEN') | default(lookup('env', 'CONCIERGE_SLACK_APP_TOKEN'), true) | default('', true) }}"
   SLACK_MODE: "{{ lookup('env', 'SLACK_MODE') | default(lookup('env', 'CONCIERGE_SLACK_MODE'), true) | default('', true) }}"
   GITHUB_APP_ID: "{{ lookup('env', 'GITHUB_APP_ID') | default(lookup('env', 'CONCIERGE_GH_APP_ID'), true) | default('', true) }}"
