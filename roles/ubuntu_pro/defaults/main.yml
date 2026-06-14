@@ -1,0 +1,12 @@
+---
+ubuntu_pro_package_name: ubuntu-pro-client
+ubuntu_pro_token_env_var: UBUNTU_PRO_TOKEN
+ubuntu_pro_landscape_account_name_env_var: LANDSCAPE_ACCOUNT_NAME
+ubuntu_pro_landscape_registration_key_env_var: LANDSCAPE_REGISTRATION_KEY
+ubuntu_pro_enable_landscape: true
+ubuntu_pro_landscape_computer_title: "{{ ansible_facts.hostname }}"
+ubuntu_pro_required_services:
+  - esm-infra
+  - esm-apps
+  - livepatch
+  - usg

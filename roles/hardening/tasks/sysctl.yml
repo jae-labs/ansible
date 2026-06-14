@@ -1,0 +1,26 @@
+---
+- name: Ensure sysctl file exists
+  ansible.builtin.file:
+    path: "{{ hardening_sysctl_file }}"
+    owner: root
+    group: root
+    mode: "0440"
+    state: touch
+    modification_time: preserve
+    access_time: preserve
+
+- name: Apply hardening sysctl settings
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: true
+    sysctl_file: "{{ hardening_sysctl_file }}"
+    state: present
+    reload: true
+    ignoreerrors: true
+  loop: "{{ (hardening_sysctl_settings | combine(hardening_sysctl_overrides)) | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  when:
+    - item.key not in hardening_sysctl_unsupported_entries
+    - ansible_facts.virtualization_type not in ['docker', 'lxc', 'openvz']

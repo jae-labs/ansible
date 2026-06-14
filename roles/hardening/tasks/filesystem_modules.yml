@@ -1,0 +1,94 @@
+---
+- name: Check whether EFI is present
+  ansible.builtin.stat:
+    path: /sys/firmware/efi
+  register: hardening_efi_present
+
+- name: Build disabled filesystem module list
+  ansible.builtin.set_fact:
+    hardening_effective_disabled_modules: >-
+      {{
+        hardening_disable_filesystem_modules
+        | reject('equalto', 'overlayfs')
+          if not (hardening_disable_overlayfs | bool)
+          else hardening_disable_filesystem_modules
+      }}
+
+- name: Remove vfat from disabled modules when EFI is present
+  ansible.builtin.set_fact:
+    hardening_effective_disabled_modules: "{{ hardening_effective_disabled_modules | difference(['vfat']) }}"
+  when:
+    - hardening_efi_present.stat.isdir is defined
+    - hardening_efi_present.stat.isdir
+
+- name: Remove explicitly excluded modules
+  ansible.builtin.set_fact:
+    hardening_effective_disabled_modules: "{{ hardening_effective_disabled_modules | difference(hardening_filesystem_module_exclusions) }}"
+
+- name: Disable configured filesystem modules
+  when: (hardening_effective_disabled_modules | length) > 0
+  block:
+    - name: Prevent module loading
+      ansible.builtin.lineinfile:
+        path: /etc/modprobe.d/hardening.conf
+        regexp: "^(#)?install {{ item }}(\\s|$)"
+        line: "install {{ item }} /bin/true"
+        create: true
+        mode: "0600"
+      loop: "{{ hardening_effective_disabled_modules }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Blacklist disabled modules
+      ansible.builtin.lineinfile:
+        path: /etc/modprobe.d/blacklist.conf
+        regexp: "^(#)?blacklist {{ item }}(\\s|$)"
+        line: "blacklist {{ item }}"
+        create: true
+        mode: "0600"
+      loop: "{{ hardening_effective_disabled_modules }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Unload disabled modules
+      ansible.builtin.command:
+        argv:
+          - modinfo
+          - -k
+          - "{{ ansible_kernel }}"
+          - -F
+          - filename
+          - "{{ item }}"
+      register: hardening_module_file
+      changed_when: false
+      failed_when: false
+      loop: "{{ hardening_effective_disabled_modules }}"
+      loop_control:
+        label: "{{ item }}"
+      when: not hardening_system_is_container | bool
+
+    - name: Remove loaded disabled modules
+      community.general.modprobe:
+        name: "{{ item.item }}"
+        state: absent
+      failed_when:
+        - hardening_unload_result is failed
+        - "'builtin' not in (hardening_unload_result.stderr | default(''))"
+      register: hardening_unload_result
+      loop: "{{ hardening_module_file.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when:
+        - not hardening_system_is_container | bool
+        - item.stdout != '(builtin)'
+        - item.rc == 0
+
+    - name: Note built-in disabled modules
+      ansible.builtin.debug:
+        msg: "Skipping unload for built-in kernel module {{ item.item }}"
+      loop: "{{ hardening_module_file.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when:
+        - not hardening_system_is_container | bool
+        - item.stdout == '(builtin)'

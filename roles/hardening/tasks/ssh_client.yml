@@ -1,0 +1,8 @@
+---
+- name: Deploy SSH client configuration
+  ansible.builtin.template:
+    src: ssh_client.conf.j2
+    dest: "{{ hardening_ssh_client_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"

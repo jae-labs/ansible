@@ -1,0 +1,20 @@
+---
+falco_service_name: falco-modern-bpf
+falco_log_path: /var/log/falco.log
+falco_apt_keyring_path: /usr/share/keyrings/falco-archive-keyring.asc
+falco_apt_gpg_key_url: https://falco.org/repo/falcosecurity-packages.asc
+falco_apt_repo_url: https://download.falco.org/packages/deb
+# Pinned to the latest stable in the Falco APT repo. Bump on tested upgrades;
+# stale pins cause apt to refuse downgrades on hosts that auto-updated.
+falco_version: "0.44.0"
+falco_rules_files:
+  - /etc/falco/falco_rules.yaml
+  - /etc/falco/falco_rules.local.yaml
+  - /etc/falco/rules.d
+falco_load_plugins:
+  - container
+falco_plugins:
+  - name: container
+    library_path: libcontainer.so
+falco_webserver_enabled: true
+falco_webserver_listen_port: 8765

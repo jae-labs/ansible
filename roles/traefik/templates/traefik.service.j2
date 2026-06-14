@@ -1,0 +1,36 @@
+[Unit]
+Description=Traefik Reverse Proxy
+Documentation=https://doc.traefik.io/traefik/
+After=network-online.target nomad.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=traefik
+Group=traefik
+ExecStart={{ traefik_bin_path }} --configfile={{ traefik_config_path }}
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+# hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+RestrictRealtime=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ReadWritePaths={{ traefik_config_dir }} {{ traefik_log_dir }}
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+[Install]
+WantedBy=multi-user.target

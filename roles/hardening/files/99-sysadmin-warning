@@ -1,0 +1,64 @@
+#!/bin/bash
+
+echo "********************************************************************************"
+echo
+
+# connecting IP from SSH session
+client_ip=$(echo "${SSH_CONNECTION:-}" | awk '{print $1}')
+
+printf "  %-20s %s\n" "Host:" "$(hostname)"
+printf "  %-20s %s\n" "Connected from:" "${client_ip:-unknown}"
+printf "  %-20s %s\n" "Internal IP:" "$(hostname -I | awk '{print $1}')"
+printf "  %-20s %s\n" "Kernel:" "$(uname -r)"
+printf "  %-20s %s\n" "Uptime:" "$(uptime -p | sed 's/^up //')"
+printf "  %-20s %s\n" "CPU Load:" "$(cat /proc/loadavg | awk '{print $1", "$2", "$3}')"
+printf "  %-20s %s\n" "Processes:" "$(ps -e --no-headers 2>/dev/null | wc -l)"
+printf "  %-20s %s\n" "Memory:" "$(free -m | awk 'NR==2{printf "%dMB / %dMB (%.1f%% used)", $3, $2, $3*100/$2}')"
+printf "  %-20s %s\n" "Swap:" "$(free -m | awk 'NR==3{if($2>0) printf "%dMB / %dMB (%.1f%% used)", $3, $2, $3*100/$2; else print "none"}')"
+printf "  %-20s %s\n" "Disk Usage:" "$(df -h / | awk 'NR==2{printf "%s / %s (%s used)", $3, $2, $5}')"
+printf "  %-20s %s\n" "Users:" "$(who | wc -l)"
+
+# listening ports
+listening=$(ss -tlnpH 2>/dev/null | tail -n +2 | wc -l)
+printf "  %-20s %s\n" "Listening:" "${listening}"
+
+# established connections
+established=$(ss -tnH state established 2>/dev/null | wc -l)
+printf "  %-20s %s\n" "Established:" "${established}"
+
+# last login
+user="${PAM_USER:-}"
+if [ -z "$user" ]; then
+    user=$(logname 2>/dev/null)
+fi
+if [ -n "$user" ]; then
+    last_info=$(last -1 -F -R "$user" 2>/dev/null | head -1 | awk '{print $4, $5, $6, $7, $8, "from", $3}')
+    if [ -n "$last_info" ]; then
+        printf "  %-20s %s\n" "Last Login:" "${last_info}"
+    fi
+fi
+
+echo
+
+if [ -x /usr/lib/update-notifier/apt-check ]; then
+    output=$(/usr/lib/update-notifier/apt-check 2>&1)
+    updates=$(echo "$output" | cut -d';' -f1)
+    if [ -n "$updates" ] && [ "$updates" -gt 0 ] 2>/dev/null; then
+        echo "  ${updates} update(s) can be applied immediately."
+        echo
+    fi
+fi
+
+# systemd failed units
+failed_units=$(systemctl --failed --no-legend 2>/dev/null | wc -l)
+if [ "$failed_units" -gt 0 ] 2>/dev/null; then
+    echo "  ${failed_units} failed systemd unit(s)"
+    echo
+fi
+
+if [ -f /var/run/reboot-required ]; then
+    echo "  *** System restart required ***"
+    echo
+fi
+
+echo "********************************************************************************"

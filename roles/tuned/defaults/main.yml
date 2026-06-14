@@ -1,0 +1,6 @@
+---
+tuned_package_name: tuned
+tuned_profile: network-latency
+tuned_main_conf_path: /etc/tuned/tuned-main.conf
+tuned_service_name: tuned
+tuned_adm_binary_path: /usr/sbin/tuned-adm

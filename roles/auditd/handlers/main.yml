@@ -1,0 +1,20 @@
+---
+- name: Restart auditd
+  ansible.builtin.systemd:
+    name: auditd
+    state: restarted
+  when: not (ansible_check_mode and auditd_package_result is changed)
+
+# Reload rules: unlock -> augenrules -> lock. The EXIT trap guarantees the
+# rules are re-locked even if augenrules fails, otherwise a failed reload
+# would leave the ruleset mutable until the next playbook run.
+- name: Reload auditd rules
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      trap 'auditctl -e 1' EXIT
+      auditctl -e 0
+      /sbin/augenrules --load
+    executable: /bin/bash
+  changed_when: true
+  listen: Reload auditd rules

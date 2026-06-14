@@ -1,0 +1,585 @@
+// Grafana Alloy Configuration
+//
+// Each signal pipeline (metrics, logs, traces, profiles) is independently
+// gated on its Grafana Cloud credentials.  Missing credentials skip the
+// entire pipeline so Alloy starts cleanly with a partial config.
+
+{% set prom_ok = grafana_cloud_prometheus_url and grafana_cloud_prometheus_username and grafana_cloud_prometheus_token %}
+{% set loki_ok = grafana_cloud_loki_url and grafana_cloud_loki_username and grafana_cloud_loki_token %}
+{% set tempo_ok = grafana_cloud_tempo_url and grafana_cloud_tempo_username and grafana_cloud_tempo_token %}
+{% set profiles_ok = grafana_cloud_profiles_url and grafana_cloud_profiles_username and grafana_cloud_profiles_token %}
+{% set honeycomb_ok = honeycomb_api_key %}
+
+
+
+{% if prom_ok %}
+// ----------------------------------------------------
+// METRICS (PROMETHEUS) CONFIGURATION
+// ----------------------------------------------------
+
+prometheus.remote_write "grafana_cloud_metrics" {
+  endpoint {
+    url = "{{ grafana_cloud_prometheus_url }}"
+    basic_auth {
+      username = "{{ grafana_cloud_prometheus_username }}"
+      password = "{{ grafana_cloud_prometheus_token }}"
+    }
+  }
+}
+
+// Global Relabeling to inject the Ansible hostname as 'instance'
+prometheus.relabel "add_instance_label" {
+  forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+
+  rule {
+    target_label = "instance"
+    replacement  = "{{ ansible_facts.hostname }}"
+  }
+}
+
+// 1. Host (Unix) system metrics
+prometheus.exporter.unix "host" {
+  // tuned linux host profile for vm + container workloads.
+  set_collectors = [
+    "conntrack",
+    "cpu",
+    "diskstats",
+    "filefd",
+    "filesystem",
+    "loadavg",
+    "meminfo",
+    "netdev",
+    "netstat",
+    "pressure",
+    "processes",
+    "sockstat",
+    "softnet",
+    "stat",
+    "systemd",
+    "time",
+    "timex",
+    "uname",
+    "vmstat",
+  ]
+
+  systemd {
+    unit_exclude = ".+\\.(socket|timer|device|mount|automount|scope|slice)"
+  }
+
+  disk {
+    device_exclude = "^(loop|ram)\\d+$"
+  }
+
+  netdev {
+    device_exclude = "^(lo|veth.*|br-.*|docker0)$"
+  }
+}
+
+prometheus.scrape "host" {
+  targets    = prometheus.exporter.unix.host.targets
+  forward_to = concat(
+    [prometheus.relabel.add_instance_label.receiver],
+{% if prom_ok and honeycomb_ok %}
+    [prometheus.relabel.honeycomb_metrics_filter.receiver],
+{% endif %}
+  )
+  job_name   = "integrations/node_exporter"
+  scrape_interval = "2m"
+}
+
+// 2. Traefik reverse proxy metrics
+prometheus.scrape "traefik" {
+  targets = [
+    {"__address__" = "127.0.0.1:{{ traefik_metrics_port | default('8083') }}"},
+  ]
+  forward_to = concat(
+    [prometheus.relabel.add_instance_label.receiver],
+{% if prom_ok and honeycomb_ok %}
+    [prometheus.relabel.honeycomb_metrics_filter.receiver],
+{% endif %}
+  )
+  job_name   = "integrations/traefik"
+  scrape_interval = "2m"
+}
+
+// 3. Cloudflare Tunnel metrics (tunnel health, connection state)
+prometheus.scrape "cloudflared" {
+  targets = [
+    {"__address__" = "127.0.0.1:49312"},
+  ]
+  forward_to = concat(
+    [prometheus.relabel.add_instance_label.receiver],
+{% if prom_ok and honeycomb_ok %}
+    [prometheus.relabel.honeycomb_metrics_filter.receiver],
+{% endif %}
+  )
+  job_name   = "integrations/cloudflared"
+  scrape_interval = "2m"
+}
+
+// 4. Alloy self-metrics
+prometheus.scrape "alloy" {
+  targets = [
+    {"__address__" = "127.0.0.1:12345"},
+  ]
+  forward_to = concat(
+    [prometheus.relabel.add_instance_label.receiver],
+{% if prom_ok and honeycomb_ok %}
+    [prometheus.relabel.honeycomb_metrics_filter.receiver],
+{% endif %}
+  )
+  job_name   = "integrations/alloy"
+  scrape_interval = "2m"
+}
+
+// 5. Container metrics via cAdvisor
+prometheus.scrape "cadvisor" {
+  targets = [
+    {"__address__" = "127.0.0.1:{{ hostvars[inventory_hostname].cadvisor_listen_port | default('8082') }}"},
+  ]
+  forward_to = concat(
+    [prometheus.relabel.add_instance_label.receiver],
+{% if prom_ok and honeycomb_ok %}
+    [prometheus.relabel.honeycomb_metrics_filter.receiver],
+{% endif %}
+  )
+  job_name   = "integrations/cadvisor"
+  scrape_interval = "2m"
+}
+
+
+
+otelcol.exporter.prometheus "otelcol_otlp_metrics" {
+  forward_to = [prometheus.relabel.add_instance_label.receiver]
+}
+{% endif %}
+
+{% if loki_ok %}
+// ----------------------------------------------------
+// LOGS (LOKI) CONFIGURATION
+// ----------------------------------------------------
+
+loki.write "grafana_cloud_logs" {
+  endpoint {
+    url = "{{ grafana_cloud_loki_url }}"
+    basic_auth {
+      username = "{{ grafana_cloud_loki_username }}"
+      password = "{{ grafana_cloud_loki_token }}"
+    }
+  }
+}
+
+// 1. Journald system logs (systemd units)
+loki.relabel "journald" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    regex         = "alloy\\.service"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unit"
+  }
+  rule {
+    target_label = "job"
+    replacement  = "drop"
+  }
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    regex         = "(.*)\\.service"
+    target_label  = "job"
+    replacement   = "$1.service"
+  }
+  rule {
+    source_labels = ["__journal__hostname"]
+    target_label  = "instance"
+  }
+  rule {
+    source_labels = ["__journal_syslog_identifier"]
+    target_label  = "syslog_identifier"
+  }
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "level"
+  }
+  rule {
+    source_labels = ["job"]
+    regex         = "drop"
+    action        = "drop"
+  }
+}
+
+loki.source.journal "journald" {
+  forward_to    = concat(
+    [loki.write.grafana_cloud_logs.receiver],
+{% if loki_ok and honeycomb_ok %}
+    [otelcol.receiver.loki.loki_to_honeycomb.receiver],
+{% endif %}
+  )
+  relabel_rules = loki.relabel.journald.rules
+}
+
+// 2. File log collections (auth.log, kern.log, syslog.log, etc.)
+local.file_match "system_files" {
+  path_targets = [
+    {"__address__" = "localhost", "__path__" = "/var/log/auth.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/kern.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/syslog"},
+    {"__address__" = "localhost", "__path__" = "/var/log/traefik/access.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/traefik/traefik.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/cloud-init.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/cloud-init-output.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/letsencrypt/letsencrypt.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/apt/history.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/dpkg.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/unattended-upgrades/unattended-upgrades.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/fail2ban.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/falco.log"},
+    {"__address__" = "localhost", "__path__" = "/var/log/audit/audit.log"},
+  ]
+}
+
+loki.relabel "system_files" {
+  forward_to = concat(
+    [loki.write.grafana_cloud_logs.receiver],
+{% if loki_ok and honeycomb_ok %}
+    [otelcol.receiver.loki.loki_to_honeycomb.receiver],
+{% endif %}
+  )
+
+  // Extract the filename as the job label (e.g. auth.log, cloud-init.log)
+  rule {
+    source_labels = ["filename"]
+    regex         = ".*/([^/]+)"
+    target_label  = "job"
+    replacement   = "$1"
+  }
+
+  // Rewrite "syslog" to "syslog.log" for consistency
+  rule {
+    source_labels = ["job"]
+    regex         = "syslog"
+    target_label  = "job"
+    replacement   = "syslog.log"
+  }
+}
+
+loki.process "exclude_alloy_logs" {
+  forward_to = [loki.relabel.system_files.receiver]
+
+  stage.drop {
+    expression = ".*alloy\\[.*"
+  }
+}
+
+loki.source.file "system_files" {
+  targets    = local.file_match.system_files.targets
+  forward_to = [loki.process.exclude_alloy_logs.receiver]
+}
+
+// 3. Docker Container Logs
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_image"]
+    target_label  = "image"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "{{ ansible_facts.hostname }}"
+  }
+
+  // Keep Nomad metadata labels if they exist
+  rule {
+    source_labels = ["__meta_docker_container_label_com_hashicorp_nomad_job_id"]
+    target_label  = "nomad_job"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_hashicorp_nomad_task_name"]
+    target_label  = "nomad_task"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_hashicorp_nomad_alloc_id"]
+    target_label  = "nomad_alloc"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_logs.output
+  forward_to = concat(
+    [loki.write.grafana_cloud_logs.receiver],
+{% if loki_ok and honeycomb_ok %}
+    [otelcol.receiver.loki.loki_to_honeycomb.receiver],
+{% endif %}
+  )
+}
+{% endif %}
+
+{% if tempo_ok %}
+// ----------------------------------------------------
+// TRACES (TEMPO / OTLP) CONFIGURATION
+// ----------------------------------------------------
+
+otelcol.auth.basic "grafana_cloud_traces_auth" {
+  username = "{{ grafana_cloud_tempo_username }}"
+  password = "{{ grafana_cloud_tempo_token }}"
+}
+
+otelcol.exporter.otlp "grafana_cloud_traces" {
+  client {
+    endpoint = "{{ grafana_cloud_tempo_url }}"
+    auth     = otelcol.auth.basic.grafana_cloud_traces_auth.handler
+  }
+}
+{% endif %}
+// ----------------------------------------------------
+// OTLP RECEIVER (always on, outputs are conditional)
+// ----------------------------------------------------
+
+otelcol.receiver.otlp "otelcol" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+  output {
+{% if prom_ok or honeycomb_ok %}
+    metrics = concat(
+{% if prom_ok %}
+      [otelcol.exporter.prometheus.otelcol_otlp_metrics.input],
+{% endif %}
+{% if honeycomb_ok %}
+      [otelcol.processor.transform.metrics_dataset.input],
+{% endif %}
+    )
+{% endif %}
+{% if tempo_ok or honeycomb_ok %}
+    traces  = [otelcol.processor.tail_sampling.{{ grafana_alloy_host_tail_sampling_name }}.input]
+{% endif %}
+{% if honeycomb_ok %}
+    logs    = [otelcol.exporter.otlp.honeycomb_host.input]
+{% endif %}
+  }
+}
+
+{% if tempo_ok or honeycomb_ok %}
+// ----------------------------------------------------
+// TAIL-BASED TRACE SAMPLING PROCESSOR
+// ----------------------------------------------------
+otelcol.processor.tail_sampling "{{ grafana_alloy_host_tail_sampling_name }}" {
+  decision_wait = "10s"
+
+  policy {
+    name = "error-policy"
+    type = "status_code"
+    status_code {
+      status_codes = ["ERROR"]
+    }
+  }
+
+  policy {
+    name = "latency-policy"
+    type = "latency"
+    latency {
+      threshold_ms = {{ concierge_trace_slow_threshold_ms | default(1000) }}
+    }
+  }
+
+  policy {
+    name = "probabilistic-policy"
+    type = "probabilistic"
+    probabilistic {
+      sampling_percentage = {{ concierge_trace_sample_percentage | default(1) }}
+    }
+  }
+
+  output {
+    traces = concat(
+{% if tempo_ok %}
+      [otelcol.exporter.otlp.grafana_cloud_traces.input],
+{% endif %}
+{% if honeycomb_ok %}
+      [otelcol.exporter.otlp.honeycomb_host.input],
+{% endif %}
+    )
+  }
+}
+{% endif %}
+
+{% if honeycomb_ok %}
+// ----------------------------------------------------
+// HONEYCOMB INTEGRATION
+// ----------------------------------------------------
+
+prometheus.relabel "honeycomb_metrics_filter" {
+  forward_to = [otelcol.receiver.prometheus.prometheus_to_honeycomb.receiver]
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "go_memstats_.*|go_gc_.*|go_threads|go_sched_.*"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "container_fs_reads_merged_total|container_fs_writes_merged_total|container_fs_sector_reads_total|container_fs_sector_writes_total|container_spec_.*|container_scrape_error|container_last_seen|container_tasks_state"
+    action        = "drop"
+  }
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "node_disk_reads_merged_total|node_disk_writes_merged_total|node_scrape_collector_duration_seconds|node_scrape_collector_success|promhttp_.*|otelcol_.*|alloy_.*"
+    action        = "drop"
+  }
+}
+
+otelcol.processor.transform "metrics_dataset" {
+  error_mode = "ignore"
+  
+  metric_statements {
+    context = "resource"
+    statements = [
+      "set(attributes[\"service.name\"], \"{{ honeycomb_dataset | default('Metrics') }}\")",
+      "set(attributes[\"meta.signal_type\"], \"metric\")",
+      "delete_key(attributes, \"service.instance.id\")",
+    ]
+  }
+
+  metric_statements {
+    context = "datapoint"
+    statements = [
+      "set(resource.attributes[\"job\"], attributes[\"job\"]) where attributes[\"job\"] != nil",
+      "set(resource.attributes[\"instance\"], attributes[\"instance\"]) where attributes[\"instance\"] != nil",
+      "delete_key(attributes, \"id\")",
+      "delete_key(attributes, \"name\")",
+      "delete_key(attributes, \"device\")",
+      "delete_key(attributes, \"boot_id\")",
+      "delete_key(attributes, \"connection_id\")",
+      "delete_key(attributes, \"conn_index\")",
+      "delete_key(attributes, \"process.pid\")",
+      "delete_key(attributes, \"machine_id\")",
+      "delete_key(attributes, \"system_uuid\")",
+      "delete_key(attributes, \"serial\")",
+      "delete_key(attributes, \"le\")",
+      "delete_key(attributes, \"interface\")",
+      "delete_key(attributes, \"image\")",
+      "delete_key(attributes, \"component_id\")",
+      "delete_key(attributes, \"component_path\")",
+      "delete_key(attributes, \"remote_name\")",
+      "delete_key(attributes, \"url\")",
+      "delete_key(attributes, \"endpoint\")",
+      "delete_key(attributes, \"scrape_job\")",
+      "delete_key(attributes, \"handler\")",
+      "delete_key(attributes, \"method\")",
+      "delete_key(attributes, \"http_request_method\")",
+      "delete_key(attributes, \"http_response_status_code\")",
+      "delete_key(attributes, \"network_protocol_name\")",
+      "delete_key(attributes, \"network_protocol_version\")",
+      "delete_key(attributes, \"server_address\")",
+      "delete_key(attributes, \"url_scheme\")",
+      "delete_key(attributes, \"rpc_method\")",
+      "delete_key(attributes, \"rpc_response_status_code\")",
+      "delete_key(attributes, \"rpc_system_name\")",
+      "delete_key(attributes, \"code\")",
+      "delete_key(attributes, \"reason\")",
+      "delete_key(attributes, \"version\")",
+      "delete_key(attributes, \"state\")",
+      "delete_key(attributes, \"status_code\")",
+      "delete_key(attributes, \"quantile\")",
+      "delete_key(attributes, \"error\")",
+      "delete_key(attributes, \"failure_type\")",
+      "delete_key(attributes, \"http.route\")",
+      "delete_key(attributes, \"http.request.method\")",
+      "delete_key(attributes, \"http.response.status_code\")",
+      "delete_key(attributes, \"file.path\")",
+      "delete_matching_keys(attributes, \"^slack\\\\.\")",
+      "delete_matching_keys(attributes, \"^container_label_com_docker_dhi_\")",
+      "delete_key(attributes, \"container_label_com_hashicorp_nomad_alloc_id\")",
+    ]
+  }
+
+  output {
+    metrics = [otelcol.processor.batch.honeycomb_metrics.input]
+  }
+}
+
+otelcol.processor.batch "honeycomb_metrics" {
+  timeout         = "10s"
+  send_batch_size = 10000
+  send_batch_max_size = 0
+
+  output {
+    metrics = [otelcol.exporter.otlp.honeycomb_metrics.input]
+  }
+}
+
+otelcol.exporter.otlp "honeycomb_metrics" {
+  client {
+    endpoint = "api.honeycomb.io:443"
+    headers = {
+      "x-honeycomb-team" = "{{ honeycomb_api_key }}",
+      "x-honeycomb-dataset" = "{{ honeycomb_dataset | default('Metrics') }}",
+    }
+  }
+}
+
+otelcol.exporter.otlp "honeycomb_host" {
+  client {
+    endpoint = "api.honeycomb.io:443"
+    headers = {
+      "x-honeycomb-team" = "{{ honeycomb_api_key }}",
+      "x-honeycomb-dataset" = "{{ honeycomb_dataset | default('oci-host-telemetry') }}",
+    }
+  }
+}
+{% endif %}
+
+{% if prom_ok and honeycomb_ok %}
+otelcol.receiver.prometheus "prometheus_to_honeycomb" {
+  output {
+    metrics = [otelcol.processor.transform.metrics_dataset.input]
+  }
+}
+{% endif %}
+
+{% if loki_ok and honeycomb_ok %}
+otelcol.receiver.loki "loki_to_honeycomb" {
+  output {
+    logs = [otelcol.exporter.otlp.honeycomb_host.input]
+  }
+}
+{% endif %}
+
+{% if profiles_ok %}
+// ----------------------------------------------------
+// PROFILES (PYROSCOPE) CONFIGURATION
+// ----------------------------------------------------
+
+pyroscope.write "grafana_cloud_profiles" {
+  endpoint {
+    url = "{{ grafana_cloud_profiles_url }}"
+    basic_auth {
+      username = "{{ grafana_cloud_profiles_username }}"
+      password = "{{ grafana_cloud_profiles_token }}"
+    }
+  }
+}
+{% endif %}

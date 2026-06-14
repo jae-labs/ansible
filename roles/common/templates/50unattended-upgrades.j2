@@ -1,0 +1,13 @@
+// Only security updates are applied automatically.  Non-security updates
+// are left for the operator to apply via the playbook or ad-hoc runs.
+
+Unattended-Upgrade::Allowed-Origins {
+  "${distro_codename}-security";
+};
+
+// Clean up downloaded packages weekly to keep /var/cache/apt small.
+Unattended-Upgrade::AutocleanInterval "{{ unattended_autoclean_interval_days }}";
+
+// Reboot when required by a kernel or critical library update.
+Unattended-Upgrade::Automatic-Reboot "{{ unattended_auto_reboot }}";
+Unattended-Upgrade::Automatic-Reboot-Time "{{ unattended_auto_reboot_time }}";

@@ -1,0 +1,35 @@
+# traefik static configuration
+# managed by ansible -- do not edit manually
+
+entryPoints:
+  web:
+    address: "{{ traefik_web_addr }}"
+  metrics:
+    address: "{{ traefik_metrics_addr }}"
+
+providers:
+  nomad:
+    endpoint:
+      address: "{{ traefik_nomad_endpoint }}"
+    exposedByDefault: false
+    watch: true
+
+metrics:
+  prometheus:
+    entryPoint: metrics
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+
+log:
+  level: INFO
+  format: json
+  filePath: "{{ traefik_main_log_path }}"
+
+accessLog:
+  format: json
+  filePath: "{{ traefik_access_log_path }}"
+  fields:
+    defaultMode: keep
+    headers:
+      defaultMode: drop

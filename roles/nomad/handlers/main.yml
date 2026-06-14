@@ -1,0 +1,13 @@
+---
+- name: Reset nomad failed state
+  ansible.builtin.command:
+    cmd: systemctl reset-failed nomad
+  changed_when: false
+  listen: Restart nomad
+
+- name: Restart nomad
+  ansible.builtin.systemd:
+    name: "{{ nomad_service_name }}"
+    state: restarted
+    daemon_reload: true
+  listen: Restart nomad

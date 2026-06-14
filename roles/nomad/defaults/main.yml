@@ -1,0 +1,41 @@
+---
+# Nomad version to install
+nomad_version: "2.0.2"
+
+# Architecture mapping: ansible_architecture -> nomad release arch
+_nomad_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+nomad_arch: "{{ _nomad_arch_map[ansible_architecture] | default('amd64') }}"
+
+# Paths
+nomad_bin_path: /usr/local/bin/nomad
+nomad_config_dir: /etc/nomad.d
+nomad_config_path: "{{ nomad_config_dir }}/nomad.hcl"
+nomad_data_dir: /opt/nomad
+nomad_service_name: nomad
+
+# Download staging
+nomad_download_dir: /tmp
+nomad_zip_path: "{{ nomad_download_dir }}/nomad_{{ nomad_version }}_linux_{{ nomad_arch }}.zip"
+
+# URLs
+nomad_base_url: "https://releases.hashicorp.com/nomad/{{ nomad_version }}"
+nomad_binary_url: "{{ nomad_base_url }}/nomad_{{ nomad_version }}_linux_{{ nomad_arch }}.zip"
+nomad_checksum_url: "{{ nomad_base_url }}/nomad_{{ nomad_version }}_SHA256SUMS"
+
+# Nomad agent configuration
+nomad_datacenter: dc1
+nomad_server_enabled: true
+nomad_client_enabled: true
+nomad_bootstrap_expect: 1
+nomad_cni_path: /usr/lib/cni
+nomad_bridge_network_name: nomad
+
+# Docker driver: allow jobs to request privileged containers.
+# Both the client option and the plugin config key must be true for
+# the docker driver to honor `privileged = true` in a task. Default
+# to false; opt in per-host only for workloads that genuinely need
+# it (e.g. Docker-in-Docker, certain CSI/sysbox drivers). Enabling
+# this permits container-escape primitives on the host.
+nomad_docker_allow_privileged: false

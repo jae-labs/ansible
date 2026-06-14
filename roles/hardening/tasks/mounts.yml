@@ -1,0 +1,10 @@
+---
+- name: Collect current mount points
+  ansible.builtin.set_fact:
+    hardening_mount_points: "{{ ansible_facts.mounts | map(attribute='mount') | list }}"
+
+- name: Configure each hardening mount entry
+  ansible.builtin.include_tasks: mount_entry.yml
+  loop: "{{ hardening_mounts }}"
+  loop_control:
+    label: "{{ item.path }}"

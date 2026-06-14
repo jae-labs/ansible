@@ -1,0 +1,87 @@
+---
+- name: Ensure SSH drop-in directory exists
+  ansible.builtin.file:
+    path: "{{ hardening_ssh_dropin_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure SSH runtime directory exists
+  ansible.builtin.file:
+    path: "{{ hardening_ssh_runtime_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Disable SSH socket activation
+  ansible.builtin.systemd:
+    name: ssh.socket
+    state: stopped
+    enabled: false
+    masked: true
+  failed_when: false
+
+- name: Remove SSH socket activation drop-ins
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/ssh.service.d/00-socket.conf
+    - /etc/systemd/system/ssh.service.requires/ssh.socket
+    - /etc/systemd/system/sockets.target.wants/ssh.socket
+
+- name: Remove obsolete SSH hardening drop-ins
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ hardening_ssh_dropin_cleanup_paths }}"
+
+- name: Ensure SSH server configuration permissions
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Discover SSH drop-in configuration files
+  ansible.builtin.find:
+    paths: "{{ hardening_ssh_dropin_dir }}"
+    patterns: '*.conf'
+    file_type: file
+    recurse: false
+  register: hardening_ssh_dropins
+
+- name: Ensure SSH drop-in configuration permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ hardening_ssh_dropins.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Deploy SSH hardening drop-in
+  ansible.builtin.template:
+    src: ssh_server.conf.j2
+    dest: "{{ hardening_ssh_dropin_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "{{ hardening_sshd_binary }} -T -C user=root -C host=localhost -C addr=localhost -C lport=22 -f %s"
+  notify: Reload hardening ssh
+
+- name: Ensure deployed SSH drop-in permissions
+  ansible.builtin.file:
+    path: "{{ hardening_ssh_dropin_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Ensure SSH service is enabled
+  ansible.builtin.service:
+    name: "{{ hardening_ssh_service_name }}"
+    enabled: true
+    state: started

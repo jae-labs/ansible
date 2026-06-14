@@ -1,0 +1,21 @@
+[Unit]
+Description=Nomad
+Documentation=https://nomad.io/docs
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+ExecStartPre=/bin/sh -c 'for cid in $(docker ps -aq --filter "name=nomad_" 2>/dev/null); do docker rm -f "$cid" 2>/dev/null; done;'
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStart={{ nomad_bin_path }} agent -config {{ nomad_config_dir }}
+KillMode=process
+KillSignal=SIGINT
+LimitNOFILE=65536
+LimitNPROC=infinity
+Restart=on-failure
+RestartSec=2
+TasksMax=infinity
+
+[Install]
+WantedBy=multi-user.target

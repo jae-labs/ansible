@@ -1,0 +1,9 @@
+---
+cadvisor_version: "0.57.0"
+cadvisor_binary_path: /usr/local/bin/cadvisor
+cadvisor_listen_ip: "127.0.0.1"
+cadvisor_listen_port: "8082"
+cadvisor_docker_socket: /var/run/docker.sock
+cadvisor_user: cadvisor
+cadvisor_group: cadvisor
+cadvisor_checksum: "sha256:9359a1192775eafeead41941690f7d94fb55f5f85833071b70593f8e7eae31ec"

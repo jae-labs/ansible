@@ -1,0 +1,7 @@
+{{ ansible_managed | comment }}
+Name: faillock notify
+Default: yes
+Priority: 1025
+Auth-Type: Primary
+Auth:
+        required                        pam_faillock.so authsucc

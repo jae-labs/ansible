@@ -1,0 +1,34 @@
+---
+- name: Remove SUID and SGID bits from blacklisted paths
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: a-s
+    state: file
+    follow: true
+  failed_when: false
+  loop: "{{ hardening_system_suid_sgid_blacklist + hardening_suid_sgid_blacklist }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Discover SUID and SGID files
+  ansible.builtin.shell: find / -xdev \( -perm -4000 -o -perm -2000 \) -type f ! -path '/proc/*' -print 2>/dev/null
+  register: hardening_suid_sgid_files
+  when: hardening_remove_unknown_suid_sgid | bool
+  changed_when: false
+  check_mode: false
+
+- name: Remove SUID and SGID bits from unknown paths
+  ansible.builtin.file:
+    path: "{{ item }}"
+    mode: a-s
+    state: file
+    follow: true
+  loop: >-
+    {{
+      hardening_suid_sgid_files.stdout_lines
+      | difference(hardening_system_suid_sgid_whitelist)
+      | difference(hardening_suid_sgid_whitelist)
+    }}
+  loop_control:
+    label: "{{ item }}"
+  when: hardening_remove_unknown_suid_sgid | bool

@@ -1,0 +1,10 @@
+# Ansible execution artifacts
+.ansible/
+*.retry
+
+# Python virtual environment and bytecode cache
+.venv/
+__pycache__/
+
+# OS-specific files
+.DS_Store

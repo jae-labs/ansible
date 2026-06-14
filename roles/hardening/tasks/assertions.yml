@@ -1,0 +1,30 @@
+---
+- name: Verify supported distribution
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == hardening_supported_distribution
+      - ansible_facts.distribution_major_version == hardening_supported_major_version
+    fail_msg: >-
+      hardening supports only {{ hardening_supported_distribution }}
+      {{ hardening_supported_major_version }}
+
+- name: Verify supported ansible version
+  ansible.builtin.assert:
+    that:
+      - ansible_version.full is version(hardening_min_ansible_version, '>=')
+    fail_msg: "Ansible {{ hardening_min_ansible_version }} or newer is required"
+
+- name: Gather package facts
+  ansible.builtin.package_facts:
+    manager: auto
+
+- name: Detect container environments
+  ansible.builtin.set_fact:
+    hardening_system_is_container: >-
+      {{
+        ansible_connection in ['docker', 'community.docker.docker']
+        or (
+          ansible_facts.virtualization_type is defined
+          and ansible_facts.virtualization_type in ['docker', 'lxc', 'openvz', 'podman', 'container']
+        )
+      }}

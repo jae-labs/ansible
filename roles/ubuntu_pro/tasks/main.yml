@@ -1,0 +1,177 @@
+---
+- name: Read Ubuntu Pro token from controller environment
+  ansible.builtin.set_fact:
+    ubuntu_pro_token: "{{ lookup('ansible.builtin.env', ubuntu_pro_token_env_var) | trim }}"
+
+- name: Read Landscape account name from controller environment
+  ansible.builtin.set_fact:
+    ubuntu_pro_landscape_account_name: >-
+      {{ lookup('ansible.builtin.env', ubuntu_pro_landscape_account_name_env_var) | trim }}
+
+- name: Read Landscape registration key from controller environment
+  ansible.builtin.set_fact:
+    ubuntu_pro_landscape_registration_key: >-
+      {{ lookup('ansible.builtin.env', ubuntu_pro_landscape_registration_key_env_var) | trim }}
+
+- name: Validate required Ubuntu Pro environment variables
+  ansible.builtin.assert:
+    that:
+      - ubuntu_pro_token | length > 0
+      - not ubuntu_pro_enable_landscape or ubuntu_pro_landscape_account_name | length > 0
+      - not ubuntu_pro_enable_landscape or ubuntu_pro_landscape_registration_key | length > 0
+    fail_msg: >-
+      Missing required environment variables. Expected {{ ubuntu_pro_token_env_var }}
+      and, when Landscape is enabled, {{ ubuntu_pro_landscape_account_name_env_var }}
+      plus {{ ubuntu_pro_landscape_registration_key_env_var }}.
+
+- name: Ensure Ubuntu Pro client is installed
+  ansible.builtin.apt:
+    name: "{{ ubuntu_pro_package_name }}"
+    state: present
+    update_cache: true
+
+- name: Inspect Ubuntu Pro status
+  ansible.builtin.command:
+    argv:
+      - pro
+      - status
+      - --format
+      - json
+  check_mode: false
+  register: ubuntu_pro_status_raw
+  changed_when: false
+
+- name: Parse Ubuntu Pro status
+  ansible.builtin.set_fact:
+    ubuntu_pro_status: "{{ ubuntu_pro_status_raw.stdout | from_json }}"
+
+- name: Predict Ubuntu Pro attach in check mode
+  ansible.builtin.debug:
+    msg: Ubuntu Pro would attach this host
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - not (ubuntu_pro_status.attached | default(false))
+
+- name: Attach host to Ubuntu Pro
+  ansible.builtin.command:
+    argv:
+      - pro
+      - attach
+      - "{{ ubuntu_pro_token }}"
+  register: ubuntu_pro_attach_result
+  changed_when: ubuntu_pro_attach_result.rc == 0
+  when:
+    - not ansible_check_mode
+    - not (ubuntu_pro_status.attached | default(false))
+
+- name: Refresh Ubuntu Pro status after attach
+  ansible.builtin.command:
+    argv:
+      - pro
+      - status
+      - --format
+      - json
+  check_mode: false
+  register: ubuntu_pro_status_after_attach_raw
+  changed_when: false
+
+- name: Select effective Ubuntu Pro status payload
+  ansible.builtin.set_fact:
+    ubuntu_pro_status_effective: >-
+      {{
+        (ubuntu_pro_status_after_attach_raw.stdout | from_json)
+        if (ubuntu_pro_attach_result is defined and ubuntu_pro_attach_result is changed)
+        else ubuntu_pro_status
+      }}
+
+- name: Collect enabled Ubuntu Pro services
+  ansible.builtin.set_fact:
+    ubuntu_pro_enabled_services: >-
+      {{
+        ubuntu_pro_status_effective.services
+        | selectattr('status', 'equalto', 'enabled')
+        | map(attribute='name')
+        | list
+      }}
+
+- name: Collect available Ubuntu Pro services
+  ansible.builtin.set_fact:
+    ubuntu_pro_available_services: >-
+      {{
+        ubuntu_pro_status_effective.services
+        | map(attribute='name')
+        | list
+      }}
+
+- name: Validate requested Ubuntu Pro services exist on host
+  ansible.builtin.assert:
+    that:
+      - ubuntu_pro_required_services | difference(ubuntu_pro_available_services) | length == 0
+    fail_msg: >-
+      Requested Ubuntu Pro services are not available on this host:
+      {{ ubuntu_pro_required_services | difference(ubuntu_pro_available_services) | join(', ') }}
+
+- name: Compute missing Ubuntu Pro services
+  ansible.builtin.set_fact:
+    ubuntu_pro_missing_services: "{{ ubuntu_pro_required_services | difference(ubuntu_pro_enabled_services) }}"
+
+- name: Predict Ubuntu Pro service enables in check mode
+  ansible.builtin.debug:
+    msg: "Ubuntu Pro would enable services: {{ ubuntu_pro_missing_services | join(', ') }}"
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - ubuntu_pro_missing_services | length > 0
+
+- name: Enable missing Ubuntu Pro services
+  ansible.builtin.command:
+    argv:
+      - pro
+      - enable
+      - "{{ item }}"
+      - --assume-yes
+  loop: "{{ ubuntu_pro_missing_services }}"
+  register: ubuntu_pro_enable_results
+  changed_when: true
+  when:
+    - not ansible_check_mode
+    - ubuntu_pro_missing_services | length > 0
+
+- name: Compute Landscape service state
+  ansible.builtin.set_fact:
+    ubuntu_pro_landscape_enabled: "{{ 'landscape' in ubuntu_pro_enabled_services }}"
+  when: ubuntu_pro_enable_landscape
+
+- name: Predict Landscape registration in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Ubuntu Pro would enable Landscape for account
+      {{ ubuntu_pro_landscape_account_name }} using title
+      {{ ubuntu_pro_landscape_computer_title }}
+  changed_when: true
+  when:
+    - ubuntu_pro_enable_landscape
+    - ansible_check_mode
+    - not (ubuntu_pro_landscape_enabled | default(false))
+
+- name: Enable Landscape SaaS registration
+  ansible.builtin.command:
+    argv:
+      - pro
+      - enable
+      - landscape
+      - --assume-yes
+      - --
+      - --account-name
+      - "{{ ubuntu_pro_landscape_account_name }}"
+      - --registration-key
+      - "{{ ubuntu_pro_landscape_registration_key }}"
+      - --computer-title
+      - "{{ ubuntu_pro_landscape_computer_title }}"
+  register: ubuntu_pro_landscape_enable_result
+  changed_when: true
+  when:
+    - ubuntu_pro_enable_landscape
+    - not ansible_check_mode
+    - not (ubuntu_pro_landscape_enabled | default(false))

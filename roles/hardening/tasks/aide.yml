@@ -1,0 +1,11 @@
+---
+- name: Check whether AIDE database exists
+  ansible.builtin.stat:
+    path: "{{ hardening_aide_database_path }}"
+  register: hardening_aide_database
+
+- name: Initialize AIDE database
+  ansible.builtin.command:
+    argv: "{{ hardening_aide_init_command }}"
+  changed_when: true
+  when: not hardening_aide_database.stat.exists

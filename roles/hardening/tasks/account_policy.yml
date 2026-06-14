@@ -1,0 +1,83 @@
+---
+- name: Read passwd entries
+  ansible.builtin.getent:
+    database: passwd
+
+- name: Read shadow entries
+  ansible.builtin.getent:
+    database: shadow
+
+- name: Set password aging for interactive users
+  ansible.builtin.user:
+    name: "{{ item }}"
+    password_expire_min: "{{ hardening_password_min_days }}"
+    password_expire_max: "{{ hardening_password_max_days }}"
+    password_expire_warn: "{{ hardening_password_warn_days }}"
+  loop: "{{ ansible_facts.getent_passwd.keys() | list }}"
+  when:
+    - hardening_user_password_aging | bool
+    - ansible_facts.getent_passwd[item][1] | int >= hardening_interactive_uid_min
+    - ansible_facts.getent_passwd[item][1] | int <= hardening_interactive_uid_max
+    - item not in hardening_ignore_users
+    - item not in hardening_users_without_password_aging
+    - ansible_facts.getent_shadow[item][0] is not match('\\*')
+    - ansible_facts.getent_shadow[item][0] is not match('\\!')
+
+- name: Restrict home directories for interactive users
+  ansible.builtin.file:
+    path: "{{ ansible_facts.getent_passwd[item][4] }}"
+    owner: "{{ item }}"
+    mode: "0700"
+    state: directory
+  loop: "{{ ansible_facts.getent_passwd.keys() | list }}"
+  when:
+    - hardening_enforce_user_home_mode | bool
+    - ansible_facts.getent_passwd[item][1] | int >= hardening_interactive_uid_min
+    - ansible_facts.getent_passwd[item][1] | int <= hardening_interactive_uid_max
+    - item not in hardening_ignore_home_directory_users
+
+- name: Restrict root home directories
+  ansible.builtin.file:
+    path: "{{ ansible_facts.getent_passwd[item][4] }}"
+    owner: "{{ item }}"
+    mode: "0700"
+    state: directory
+  loop: "{{ ansible_facts.getent_passwd.keys() | list }}"
+  when:
+    - hardening_enforce_root_home_mode | bool
+    - ansible_facts.getent_passwd[item][1] | int == 0
+
+- name: Lock system account shells
+  ansible.builtin.user:
+    name: "{{ item }}"
+    shell: "{{ hardening_nologin_shell }}"
+    create_home: false
+  loop: "{{ ansible_facts.getent_passwd.keys() | list }}"
+  when:
+    - ansible_facts.getent_passwd[item][1] | int >= hardening_system_uid_min
+    - ansible_facts.getent_passwd[item][1] | int <= hardening_system_uid_max
+    - item not in hardening_system_users_always_ignored
+    - item not in hardening_ignore_users
+
+- name: Lock system account passwords
+  ansible.builtin.user:
+    name: "{{ item }}"
+    password: '*'
+    create_home: false
+  loop: "{{ ansible_facts.getent_passwd.keys() | list }}"
+  when:
+    - ansible_facts.getent_passwd[item][1] | int >= hardening_system_uid_min
+    - ansible_facts.getent_passwd[item][1] | int <= hardening_system_uid_max
+    - item not in hardening_system_users_always_ignored
+    - item not in hardening_ignore_users
+    - ansible_facts.getent_shadow[item][0] is not match('\\!')
+
+- name: Remove additional uid-zero users
+  ansible.builtin.user:
+    name: "{{ item }}"
+    state: absent
+  loop: "{{ ansible_facts.getent_passwd.keys() | list }}"
+  when:
+    - hardening_remove_additional_uid_zero_users | bool
+    - ansible_facts.getent_passwd[item][1] | int == 0
+    - item != 'root'

@@ -1,0 +1,21 @@
+---
+grafana_alloy_service_name: alloy
+grafana_alloy_config_dir: /etc/alloy
+grafana_alloy_config_path: "{{ grafana_alloy_config_dir }}/config.alloy"
+
+# Pinned to the latest stable in the Grafana apt repo. Bump on tested
+# upgrades; stale pins cause apt to refuse downgrades on hosts that
+# auto-updated.
+grafana_alloy_version: "1.16.3-1"
+
+# Grafana Cloud credentials and write endpoints are injected by
+# `inventory/group_vars/all.yml` from the local operator environment. Each
+# signal pipeline (metrics, logs, traces, profiles) is gated on its own
+# credential triplet in `templates/config.alloy.j2`.
+
+honeycomb_api_key: ""
+
+# Tail-sampling defaults for concierge traces
+grafana_alloy_host_tail_sampling_name: host_traces
+concierge_trace_sample_percentage: 1
+concierge_trace_slow_threshold_ms: 1000

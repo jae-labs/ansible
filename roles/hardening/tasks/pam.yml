@@ -1,0 +1,133 @@
+---
+- name: Remove cached credential package
+  ansible.builtin.package:
+    name: libpam-ccreds
+    state: absent
+
+- name: Ensure faillock state directory exists
+  ansible.builtin.file:
+    path: /var/run/faillock
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configure faillock defaults
+  ansible.builtin.template:
+    src: faillock.conf.j2
+    dest: /etc/security/faillock.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Install PAM profile fragments
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ hardening_pam_files_dir }}/{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - src: pam_faillock.j2
+      dest: "{{ hardening_pam_faillock_filename }}"
+    - src: pam_faillock_notify.j2
+      dest: "{{ hardening_pam_faillock_notify_filename }}"
+    - src: pwquality.j2
+      dest: "{{ hardening_pam_pwquality_filename }}"
+    - src: pwhistory.j2
+      dest: "{{ hardening_pam_pwhistory_filename }}"
+    - src: pam_unix.j2
+      dest: "{{ hardening_pam_unix_filename }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  notify: Refresh hardening pam
+  when: hardening_manage_pam_profiles | bool
+
+- name: Remove hardening PAM profile fragments when disabled
+  ansible.builtin.file:
+    path: "{{ hardening_pam_files_dir }}/{{ item }}"
+    state: absent
+  loop:
+    - "{{ hardening_pam_faillock_filename }}"
+    - "{{ hardening_pam_faillock_notify_filename }}"
+    - "{{ hardening_pam_pwquality_filename }}"
+    - "{{ hardening_pam_pwhistory_filename }}"
+    - "{{ hardening_pam_unix_filename }}"
+  when: not hardening_manage_pam_profiles | bool
+
+- name: Remove pam_passwdqc from common-password
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-password
+    regexp: '^\s*password\s+requisite\s+pam_passwdqc\.so'
+    state: absent
+  when: hardening_manage_effective_pam_stack | bool
+
+- name: Ensure pam_faillock preauth is present in common-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    insertbefore: '^\s*auth\s+\[success=.*pam_unix\.so'
+    line: 'auth	required			pam_faillock.so preauth'
+  when: hardening_manage_effective_pam_stack | bool
+
+- name: Ensure pam_faillock authfail is present in common-auth
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-auth
+    insertafter: '^\s*auth\s+\[success=.*pam_unix\.so'
+    line: 'auth	required			pam_faillock.so authfail'
+  when: hardening_manage_effective_pam_stack | bool
+
+- name: Ensure common-auth does not allow empty passwords
+  ansible.builtin.replace:
+    path: /etc/pam.d/common-auth
+    regexp: '\bnullok\b\s*'
+    replace: ''
+  when: hardening_manage_effective_pam_stack | bool
+
+- name: Ensure pam_faillock account control is present
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-account
+    insertbefore: '^\s*account\s+\[success=.*pam_unix\.so'
+    line: 'account	required			pam_faillock.so'
+  when: hardening_manage_effective_pam_stack | bool
+
+- name: Ensure pam_pwquality is present in common-password
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-password
+    insertbefore: '^\s*password\s+\[success=.*pam_unix\.so'
+    line: 'password	requisite			pam_pwquality.so retry=3'
+  when: hardening_manage_effective_pam_stack | bool
+
+- name: Ensure pam_pwhistory is present in common-password
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-password
+    insertbefore: '^\s*password\s+\[success=.*pam_unix\.so'
+    line: 'password	requisite			pam_pwhistory.so remember={{ hardening_password_remember }} {% if hardening_password_enforce_root %}enforce_for_root {% endif %}use_authtok'
+  when: hardening_manage_effective_pam_stack | bool
+
+- name: Ensure pam_unix password line uses use_authtok and yescrypt
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-password
+    regexp: '^\s*password\s+\[success=.*pam_unix\.so.*$'
+    line: 'password	[success=1 default=ignore]	pam_unix.so obscure use_authtok try_first_pass {{ hardening_password_hash_algorithm }}'
+  when: hardening_manage_effective_pam_stack | bool
+
+- name: Ensure su wheel group exists
+  ansible.builtin.group:
+    name: "{{ hardening_pam_wheel_group }}"
+    state: present
+  when: hardening_manage_su_restrictions | bool
+
+- name: Ensure pam_wheel is enabled for su
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/su
+    regexp: '^\s*auth\s+required\s+pam_wheel\.so.*$'
+    line: 'auth       required   pam_wheel.so use_uid group={{ hardening_pam_wheel_group }}'
+    insertafter: '^auth\s+sufficient\s+pam_rootok\.so'
+  when: hardening_manage_su_restrictions | bool
+
+- name: Allow SSH key logins after password expiry
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/common-account
+    backrefs: true
+    regexp: "^(account.*pam_unix.so(?!.*no_pass_expiry).*)$"
+    line: '\1 no_pass_expiry'
