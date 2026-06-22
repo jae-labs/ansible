@@ -1,0 +1,50 @@
+ansible_become: true
+ansible_user: ubuntu
+
+# Must be set explicitly via TF_VAR_SSH_INGRESS_CIDR.  Falls back to a single
+# /32 address to avoid accidentally opening SSH to the world.  The playbook will
+# fail if this variable is empty, which is the safe default.
+iptables_ssh_ingress_cidr: "{{ lookup('env', 'TF_VAR_SSH_INGRESS_CIDR') }}"
+iptables_rules_path: /etc/iptables/rules.v4
+iptables_packages:
+  - iptables
+  - iptables-persistent
+# Public ingress now goes through cloudflared -> traefik on loopback, so 80/443 are
+# no longer opened on the host firewall.  OCI security lists also block these ports at
+# the cloud boundary by default.  If direct public HTTP/HTTPS is ever needed again,
+# add 80 and 443 back to this list AND open the corresponding OCI security-list rules.
+iptables_allowed_tcp_ports: []
+
+# iptables uses the
+# subnet to allow OTLP traffic from the nomad cni network.
+nomad_cni_network_subnet: 172.26.64.0/20
+
+iptables_container_otel_subnet: "{{ nomad_cni_network_subnet }}"
+iptables_container_otel_ports:
+  - 4317
+  - 4318
+  - 4319
+  - 4320
+
+# Grafana Cloud write endpoints and tokens. Each signal is gated on its own
+# triplet in `roles/grafana_alloy/templates/config.alloy.j2`.
+grafana_cloud_prometheus_url: "{{ lookup('env', 'GRAFANA_CLOUD_PROMETHEUS_URL') }}"
+grafana_cloud_prometheus_username: "{{ lookup('env', 'GRAFANA_CLOUD_PROMETHEUS_USERNAME') }}"
+grafana_cloud_prometheus_token: "{{ lookup('env', 'GRAFANA_CLOUD_PROMETHEUS_TOKEN') }}"
+
+grafana_cloud_loki_url: "{{ lookup('env', 'GRAFANA_CLOUD_LOKI_URL') }}"
+grafana_cloud_loki_username: "{{ lookup('env', 'GRAFANA_CLOUD_LOKI_USERNAME') }}"
+grafana_cloud_loki_token: "{{ lookup('env', 'GRAFANA_CLOUD_LOKI_TOKEN') }}"
+
+grafana_cloud_tempo_url: "{{ lookup('env', 'GRAFANA_CLOUD_TEMPO_URL') }}"
+grafana_cloud_tempo_username: "{{ lookup('env', 'GRAFANA_CLOUD_TEMPO_USERNAME') }}"
+grafana_cloud_tempo_token: "{{ lookup('env', 'GRAFANA_CLOUD_TEMPO_TOKEN') }}"
+
+grafana_cloud_profiles_url: "{{ lookup('env', 'GRAFANA_CLOUD_PROFILES_URL') }}"
+grafana_cloud_profiles_username: "{{ lookup('env', 'GRAFANA_CLOUD_PROFILES_USERNAME') }}"
+grafana_cloud_profiles_token: "{{ lookup('env', 'GRAFANA_CLOUD_PROFILES_TOKEN') }}"
+
+honeycomb_api_key: "{{ lookup('env', 'HONEYCOMB_API_KEY') | default('', true) }}"
+
+concierge_trace_sample_percentage: "{{ lookup('env', 'CONCIERGE_TRACE_SAMPLE_PERCENTAGE') | default(1, true) }}"
+concierge_trace_slow_threshold_ms: "{{ lookup('env', 'CONCIERGE_TRACE_SLOW_THRESHOLD_MS') | default(1000, true) }}"

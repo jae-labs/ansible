@@ -1,0 +1,125 @@
+---
+# Defaults for the auditd role configuration
+
+# Configuration defaults for /etc/audit/auditd.conf
+auditd_local_events: "yes"
+auditd_write_logs: "yes"
+auditd_log_file: /var/log/audit/audit.log
+auditd_rules_path: /etc/audit/rules.d/99-ansible-baseline.rules
+auditd_log_group: root
+auditd_log_format: RAW
+auditd_flush: INCREMENTAL_ASYNC
+auditd_freq: 50
+auditd_max_log_file: 8
+auditd_num_logs: 5
+auditd_priority_boost: 4
+auditd_name_format: NONE
+auditd_max_log_file_action: ROTATE
+auditd_space_left: 75
+auditd_space_left_action: SYSLOG
+auditd_verify_email: "yes"
+auditd_action_mail_acct: root
+auditd_admin_space_left: 50
+auditd_admin_space_left_action: SUSPEND
+auditd_disk_full_action: SUSPEND
+auditd_disk_error_action: SUSPEND
+auditd_use_libwrap: "yes"
+auditd_tcp_listen_queue: 5
+auditd_tcp_max_per_addr: 1
+auditd_tcp_client_max_idle: 0
+auditd_enable_krb5: "no"
+auditd_krb5_principal: auditd
+auditd_distribute_network: "no"
+auditd_q_depth: 400
+auditd_overflow_action: SYSLOG
+
+# Baseline security monitoring rules as specified in the design doc
+# Config files to monitor modifications
+auditd_rules_system_configs:
+  - path: /etc/passwd
+    permissions: wa
+    key: user-lists
+  - path: /etc/shadow
+    permissions: wa
+    key: user-lists
+  - path: /etc/group
+    permissions: wa
+    key: user-lists
+  - path: /etc/gshadow
+    permissions: wa
+    key: user-lists
+  - path: /etc/pam.d
+    permissions: wa
+    key: pam-config
+  - path: /etc/ssh/sshd_config
+    permissions: wa
+    key: ssh-config
+  - path: /etc/sudoers
+    permissions: wa
+    key: sudoers-config
+  - path: /etc/sudoers.d
+    permissions: wa
+    key: sudoers-config
+  - path: /etc/cron.allow
+    permissions: wa
+    key: cron-config
+  - path: /etc/cron.deny
+    permissions: wa
+    key: cron-config
+  - path: /etc/crontab
+    permissions: wa
+    key: cron-config
+  - path: /etc/cron.d
+    permissions: wa
+    key: cron-config
+  - path: /etc/cron.daily
+    permissions: wa
+    key: cron-config
+  - path: /etc/cron.hourly
+    permissions: wa
+    key: cron-config
+  - path: /etc/cron.monthly
+    permissions: wa
+    key: cron-config
+  - path: /etc/cron.weekly
+    permissions: wa
+    key: cron-config
+  - path: /etc/systemd/system
+    permissions: wa
+    key: systemd-persistence
+  - path: /usr/lib/systemd/system
+    permissions: wa
+    key: systemd-persistence
+  - path: /etc/docker
+    permissions: wa
+    key: docker-config
+
+# Executable commands to monitor for privilege changes
+auditd_rules_commands:
+  - path: /usr/bin/sudo
+    permissions: x
+    key: privilege-change
+  - path: /usr/bin/su
+    permissions: x
+    key: privilege-change
+  - path: /usr/bin/pkexec
+    permissions: x
+    key: privilege-change
+  - path: /usr/bin/newgrp
+    permissions: x
+    key: privilege-change
+  - path: /usr/bin/chsh
+    permissions: x
+    key: privilege-change
+  - path: /usr/bin/chfn
+    permissions: x
+    key: privilege-change
+
+# Failure mode: 2 = kernel panic when audit backlog is exhausted.
+# Use 1 (rate-limited warning) only when audit availability is less
+# critical than system uptime.
+auditd_failure_mode: 2
+
+# Lock rules after loading: 1 = immutable (auditctl -e 0 to unlock),
+# 2 = immutable until reboot.
+auditd_rules_lock: 1

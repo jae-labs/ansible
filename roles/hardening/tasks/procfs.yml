@@ -1,0 +1,8 @@
+---
+- name: Configure procfs hidepid
+  ansible.posix.mount:
+    path: /proc
+    src: proc
+    fstype: proc
+    opts: "{{ hardening_proc_mount_options }},hidepid={{ hardening_proc_hidepid }}"
+    state: mounted

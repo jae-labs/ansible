@@ -1,0 +1,77 @@
+---
+- name: Configure shell timeout
+  ansible.builtin.template:
+    src: tmout.sh.j2
+    dest: "{{ hardening_shell_timeout_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure default umask script
+  ansible.builtin.template:
+    src: umask.sh.j2
+    dest: /etc/profile.d/50-hardening-umask.sh
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Configure root umask
+  ansible.builtin.lineinfile:
+    path: /root/.bash_profile
+    regexp: '\s*umask'
+    line: "umask {{ hardening_root_umask }}"
+    create: true
+    mode: "0600"
+
+- name: Ensure TMOUT is set in /etc/profile
+  ansible.builtin.lineinfile:
+    path: /etc/profile
+    regexp: '^export TMOUT='
+    line: 'export TMOUT={{ hardening_shell_timeout }}'
+
+- name: Ensure TMOUT is readonly in /etc/profile
+  ansible.builtin.lineinfile:
+    path: /etc/profile
+    regexp: '^readonly TMOUT$'
+    line: 'readonly TMOUT'
+
+- name: Ensure default bash umask is set in /etc/bash.bashrc
+  ansible.builtin.lineinfile:
+    path: /etc/bash.bashrc
+    regexp: '^\s*umask\s+'
+    line: 'umask {{ hardening_umask }}'
+
+- name: Read passwd database for init file permissions
+  ansible.builtin.getent:
+    database: passwd
+  when: hardening_enforce_user_init_file_modes | bool
+
+- name: Find user init files
+  ansible.builtin.find:
+    paths: "{{ ansible_facts.getent_passwd[item][4] }}"
+    patterns: "{{ hardening_user_init_files }}"
+    hidden: true
+    file_type: file
+    recurse: false
+  loop: "{{ ansible_facts.getent_passwd.keys() | list }}"
+  register: hardening_user_init_file_scan
+  when:
+    - hardening_enforce_user_init_file_modes | bool
+    - ansible_facts.getent_passwd[item][1] | int >= hardening_interactive_uid_min
+    - ansible_facts.getent_passwd[item][1] | int <= hardening_interactive_uid_max
+    - item not in hardening_ignore_home_directory_users
+
+- name: Restrict user init file permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    mode: "{{ hardening_user_init_file_mode }}"
+  loop: >-
+    {{
+      hardening_user_init_file_scan.results
+      | selectattr('files', 'defined')
+      | map(attribute='files')
+      | flatten
+    }}
+  loop_control:
+    label: "{{ item.path }}"
+  when: hardening_enforce_user_init_file_modes | bool

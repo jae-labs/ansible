@@ -1,0 +1,6 @@
+# Variables for the `web` host group.
+#
+# The active production inventory (`oci.oci.yml`) currently does not group
+# hosts by role, so this file is a placeholder. When the inventory is
+# extended to assign hosts to a `[web]` group, override the relevant
+# web-stack variables here (e.g. traefik, cloudflare_tunnel, cadvisor).

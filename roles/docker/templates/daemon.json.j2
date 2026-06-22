@@ -1,0 +1,11 @@
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "{{ docker_log_max_size }}",
+    "max-file": "{{ docker_log_max_files }}"
+  },
+  "icc": {{ docker_icc | to_json }},
+  "no-new-privileges": {{ docker_no_new_privileges | to_json }},
+  "live-restore": {{ docker_live_restore | to_json }},
+  "userns-remap": "{{ docker_userns_remap }}"
+}

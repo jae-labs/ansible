@@ -1,0 +1,27 @@
+datacenter = "{{ nomad_datacenter }}"
+data_dir   = "{{ nomad_data_dir }}"
+
+server {
+  enabled          = {{ nomad_server_enabled | lower }}
+  bootstrap_expect = {{ nomad_bootstrap_expect }}
+}
+
+client {
+  enabled               = {{ nomad_client_enabled | lower }}
+  cni_path              = "{{ nomad_cni_path }}"
+  bridge_network_name   = "{{ nomad_bridge_network_name }}"
+  bridge_network_subnet = "{{ nomad_cni_network_subnet }}"
+  options {
+    "docker.privileged.enabled" = {{ nomad_docker_allow_privileged | lower }}
+  }
+}
+
+plugin "docker" {
+  config {
+    allow_privileged = {{ nomad_docker_allow_privileged | lower }}
+  }
+}
+
+template {
+  disable_file_sandbox = true
+}

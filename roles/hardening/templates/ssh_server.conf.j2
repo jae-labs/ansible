@@ -1,0 +1,119 @@
+#jinja2: trim_blocks:True, lstrip_blocks:True
+{{ ansible_managed | comment }}
+{% for line in hardening_ssh_custom_server_options %}
+{{ line }}
+{% endfor %}
+{% for port in hardening_ssh_server_ports %}
+Port {{ port }}
+{% endfor %}
+AddressFamily {{ 'any' if hardening_ipv6_enabled else 'inet' }}
+{% for address in hardening_ssh_listen_addresses %}
+ListenAddress {{ address }}
+{% endfor %}
+{% for key in hardening_ssh_host_key_files %}
+HostKey {{ key }}
+{% endfor %}
+{% for certificate in hardening_ssh_host_certificates %}
+HostCertificate {{ certificate }}
+{% endfor %}
+{% if hardening_ssh_host_key_algorithms %}
+HostKeyAlgorithms {{ hardening_ssh_host_key_algorithms | join(',') }}
+{% endif %}
+{% if hardening_ssh_allowed_users %}
+AllowUsers {{ hardening_ssh_allowed_users | join(' ') }}
+{% endif %}
+{% if hardening_ssh_allowed_groups %}
+AllowGroups {{ hardening_ssh_allowed_groups | join(' ') }}
+{% endif %}
+{% if hardening_ssh_denied_users %}
+DenyUsers {{ hardening_ssh_denied_users | join(' ') }}
+{% endif %}
+{% if hardening_ssh_denied_groups %}
+DenyGroups {{ hardening_ssh_denied_groups | join(' ') }}
+{% endif %}
+StrictModes {{ 'yes' if hardening_ssh_strict_modes else 'no' }}
+SyslogFacility {{ hardening_ssh_syslog_facility }}
+LogLevel {{ hardening_ssh_log_level }}
+{% if hardening_ssh_ciphers %}
+Ciphers {{ hardening_ssh_ciphers | join(',') }}
+{% endif %}
+{% if hardening_ssh_macs %}
+MACs {{ hardening_ssh_macs | join(',') }}
+{% endif %}
+{% if hardening_ssh_kex %}
+KexAlgorithms {{ hardening_ssh_kex | join(',') }}
+{% endif %}
+LoginGraceTime {{ hardening_ssh_login_grace_time }}
+MaxAuthTries {{ hardening_ssh_max_auth_retries }}
+MaxSessions {{ hardening_ssh_max_sessions }}
+MaxStartups {{ hardening_ssh_max_startups }}
+PubkeyAuthentication {{ 'yes' if hardening_ssh_pubkey_authentication else 'no' }}
+{% if hardening_ssh_enforce_key_only_auth %}
+AuthenticationMethods {{ hardening_ssh_authentication_methods }}
+{% endif %}
+PasswordAuthentication {{ 'yes' if hardening_ssh_server_password_login else 'no' }}
+PermitEmptyPasswords no
+ChallengeResponseAuthentication {{ 'yes' if hardening_ssh_challenge_response_authentication else 'no' }}
+IgnoreRhosts yes
+IgnoreUserKnownHosts yes
+HostbasedAuthentication no
+UsePAM {{ 'yes' if hardening_ssh_use_pam else 'no' }}
+KerberosAuthentication no
+KerberosOrLocalPasswd no
+KerberosTicketCleanup yes
+GSSAPIAuthentication {{ 'yes' if hardening_ssh_gssapi_support else 'no' }}
+GSSAPICleanupCredentials yes
+PermitRootLogin {{ hardening_ssh_permit_root_login }}
+{% if hardening_ssh_authorized_keys_file %}
+AuthorizedKeysFile {{ hardening_ssh_authorized_keys_file }}
+{% endif %}
+TCPKeepAlive no
+ClientAliveInterval {{ hardening_ssh_client_alive_interval }}
+ClientAliveCountMax {{ hardening_ssh_client_alive_count }}
+PermitTunnel {{ hardening_ssh_permit_tunnel }}
+AllowTcpForwarding {{ hardening_ssh_allow_tcp_forwarding }}
+AllowAgentForwarding {{ 'yes' if hardening_ssh_allow_agent_forwarding else 'no' }}
+{% if hardening_ssh_gateway_ports == 'clientspecified' %}
+GatewayPorts clientspecified
+{% elif hardening_ssh_gateway_ports %}
+GatewayPorts yes
+{% else %}
+GatewayPorts no
+{% endif %}
+X11Forwarding {{ 'yes' if hardening_ssh_x11_forwarding else 'no' }}
+X11UseLocalhost yes
+PermitUserEnvironment no
+{% if hardening_ssh_server_accept_env %}
+AcceptEnv {{ hardening_ssh_server_accept_env }}
+{% endif %}
+Compression {{ 'yes' if hardening_ssh_compression else 'no' }}
+UseDNS {{ 'yes' if hardening_ssh_use_dns else 'no' }}
+PrintMotd {{ 'yes' if hardening_ssh_print_motd else 'no' }}
+PrintLastLog {{ 'yes' if hardening_ssh_print_last_log else 'no' }}
+Banner /etc/issue.net
+DebianBanner {{ 'yes' if hardening_ssh_print_distro_banner else 'no' }}
+RevokedKeys /etc/ssh/revoked_keys
+{% for item in hardening_ssh_server_match_address %}
+Match Address {{ item.address }}
+{% for rule in item.rules %}
+  {{ rule }}
+{% endfor %}
+{% endfor %}
+{% for item in hardening_ssh_server_match_group %}
+Match Group {{ item.group }}
+{% for rule in item.rules %}
+  {{ rule }}
+{% endfor %}
+{% endfor %}
+{% for item in hardening_ssh_server_match_user %}
+Match User {{ item.user }}
+{% for rule in item.rules %}
+  {{ rule }}
+{% endfor %}
+{% endfor %}
+{% for item in hardening_ssh_server_match_local_port %}
+Match LocalPort {{ item.port }}
+{% for rule in item.rules %}
+  {{ rule }}
+{% endfor %}
+{% endfor %}

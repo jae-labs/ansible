@@ -1,0 +1,4 @@
+unattended_update_interval_days: 1
+unattended_autoclean_interval_days: 7
+unattended_auto_reboot: "false"
+unattended_auto_reboot_time: "03:00"

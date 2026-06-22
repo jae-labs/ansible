@@ -1,0 +1,33 @@
+---
+traefik_version: "3.7.4"
+
+_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+traefik_arch: "{{ _arch_map[ansible_architecture] | default('amd64') }}"
+
+traefik_bin_path: /usr/local/bin/traefik
+traefik_config_dir: /etc/traefik
+traefik_config_path: "{{ traefik_config_dir }}/traefik.yml"
+traefik_service_name: traefik
+
+traefik_download_dir: /tmp
+traefik_tarball_path: "{{ traefik_download_dir }}/traefik_v{{ traefik_version }}_linux_{{ traefik_arch }}.tar.gz"
+
+traefik_base_url: "https://github.com/traefik/traefik/releases/download/v{{ traefik_version }}"
+traefik_tarball_url: "{{ traefik_base_url }}/traefik_v{{ traefik_version }}_linux_{{ traefik_arch }}.tar.gz"
+traefik_checksum_url: "{{ traefik_base_url }}/traefik_v{{ traefik_version }}_checksums.txt"
+
+# entrypoint: cloudflared connects here
+traefik_web_addr: "127.0.0.1:8080"
+
+# entrypoint: alloy scrapes prometheus metrics here
+traefik_metrics_addr: "127.0.0.1:8083"
+
+# nomad api for service discovery
+traefik_nomad_endpoint: "http://127.0.0.1:4646"
+
+# logging
+traefik_log_dir: /var/log/traefik
+traefik_access_log_path: "{{ traefik_log_dir }}/access.log"
+traefik_main_log_path: "{{ traefik_log_dir }}/traefik.log"

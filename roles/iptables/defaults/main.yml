@@ -1,0 +1,3 @@
+iptables_allow_icmp: false
+iptables_container_otel_subnet: ""
+iptables_container_otel_ports: []

@@ -1,0 +1,100 @@
+---
+- name: Ensure unzip is installed
+  ansible.builtin.apt:
+    name: unzip
+    state: present
+    update_cache: true
+
+- name: Install containernetworking-plugins
+  ansible.builtin.apt:
+    name: containernetworking-plugins
+    state: present
+
+- name: Get installed nomad version
+  ansible.builtin.command:
+    cmd: "{{ nomad_bin_path }} version"
+  register: _nomad_installed
+  changed_when: false
+  failed_when: false
+
+- name: Set nomad needs update fact
+  ansible.builtin.set_fact:
+    _nomad_needs_update: >-
+      {{ _nomad_installed.rc != 0 or
+         nomad_version not in (_nomad_installed.stdout | default('')) }}
+
+- name: Download nomad SHA256SUMS
+  ansible.builtin.get_url:
+    url: "{{ nomad_checksum_url }}"
+    dest: "{{ nomad_download_dir }}/nomad_{{ nomad_version }}_SHA256SUMS"
+    mode: "0644"
+  when: _nomad_needs_update
+
+- name: Extract checksum for target binary
+  ansible.builtin.shell:
+    cmd: >-
+      set -o pipefail &&
+      grep 'nomad_{{ nomad_version }}_linux_{{ nomad_arch }}.zip'
+      {{ nomad_download_dir }}/nomad_{{ nomad_version }}_SHA256SUMS
+      | awk '{print $1}'
+    executable: /bin/bash
+  register: _nomad_checksum
+  changed_when: false
+  when: _nomad_needs_update
+
+- name: Download nomad binary
+  ansible.builtin.get_url:
+    url: "{{ nomad_binary_url }}"
+    dest: "{{ nomad_zip_path }}"
+    mode: "0644"
+    checksum: "sha256:{{ _nomad_checksum.stdout }}"
+  when: _nomad_needs_update
+
+- name: Install nomad binary
+  ansible.builtin.unarchive:
+    src: "{{ nomad_zip_path }}"
+    dest: /usr/local/bin
+    remote_src: true
+    mode: "0755"
+  when: _nomad_needs_update
+
+- name: Ensure nomad configuration directory exists
+  ansible.builtin.file:
+    path: "{{ nomad_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure nomad data directory exists
+  ansible.builtin.file:
+    path: "{{ nomad_data_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy nomad configuration
+  ansible.builtin.template:
+    src: nomad.hcl.j2
+    dest: "{{ nomad_config_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart nomad
+
+- name: Deploy nomad systemd unit
+  ansible.builtin.template:
+    src: nomad.service.j2
+    dest: "/etc/systemd/system/{{ nomad_service_name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart nomad
+
+- name: Ensure nomad service is enabled and started
+  ansible.builtin.systemd:
+    name: "{{ nomad_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true

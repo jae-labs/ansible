@@ -1,0 +1,57 @@
+- name: Preseed iptables-persistent IPv4 autosave
+  ansible.builtin.debconf:
+    name: iptables-persistent
+    question: iptables-persistent/autosave_v4
+    vtype: boolean
+    value: "true"
+
+- name: Preseed iptables-persistent IPv6 autosave
+  ansible.builtin.debconf:
+    name: iptables-persistent
+    question: iptables-persistent/autosave_v6
+    vtype: boolean
+    value: "false"
+
+- name: Install iptables packages
+  ansible.builtin.apt:
+    name: "{{ iptables_packages }}"
+    state: present
+    update_cache: true
+
+- name: Ensure IPv4 netfilter restore flushes stale cloud image rules
+  ansible.builtin.lineinfile:
+    path: /etc/default/netfilter-persistent
+    regexp: '^IPTABLES_RESTORE_NOFLUSH='
+    line: 'IPTABLES_RESTORE_NOFLUSH=no'
+  notify: Apply netfilter-persistent rules
+
+- name: Ensure IPv6 netfilter restore flushes stale cloud image rules
+  ansible.builtin.lineinfile:
+    path: /etc/default/netfilter-persistent
+    regexp: '^IP6TABLES_RESTORE_NOFLUSH='
+    line: 'IP6TABLES_RESTORE_NOFLUSH=no'
+  notify: Apply netfilter-persistent rules
+
+- name: Ensure SSH ingress CIDR is configured
+  ansible.builtin.assert:
+    that:
+      - iptables_ssh_ingress_cidr | length > 0
+    fail_msg: >-
+      iptables_ssh_ingress_cidr is empty.  Set TF_VAR_SSH_INGRESS_CIDR in your
+      environment to a specific CIDR (e.g. your office VPN or home IP) before running
+      the firewall role.  Leaving SSH open to 0.0.0.0/0 is not a supported default.
+
+- name: Render IPv4 iptables rules
+  ansible.builtin.template:
+    src: rules.v4.j2
+    dest: "{{ iptables_rules_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply netfilter-persistent rules
+
+- name: Ensure netfilter-persistent is enabled
+  ansible.builtin.service:
+    name: netfilter-persistent
+    enabled: true
+    state: started

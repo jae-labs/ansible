@@ -1,0 +1,22 @@
+# Delete all rules first
+-D
+
+# Increase the buffers to survive peak loads
+-b 8192
+
+# Failure mode: 1 = print rate-limited kernel warnings, 2 = kernel panic
+-f {{ auditd_failure_mode }}
+
+# System config file monitoring
+{% for rule in auditd_rules_system_configs %}
+-w {{ rule.path }} -p {{ rule.permissions }} -k {{ rule.key }}
+{% endfor %}
+
+# Executable command monitoring
+{% for rule in auditd_rules_commands %}
+-w {{ rule.path }} -p {{ rule.permissions }} -k {{ rule.key }}
+{% endfor %}
+
+# Lock rules so they cannot be changed without a deliberate unlock.
+# 1 = immutable (auditctl -e 0 to unlock), 2 = immutable until reboot.
+-e {{ auditd_rules_lock }}

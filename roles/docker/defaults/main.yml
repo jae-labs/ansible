@@ -1,0 +1,19 @@
+docker_apt_keyring_path: /etc/apt/keyrings/docker.asc
+docker_apt_repo_url: "https://download.docker.com/linux/ubuntu"
+docker_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+# Docker daemon security and logging defaults
+docker_log_max_size: "10m"
+docker_log_max_files: "3"
+docker_icc: false
+docker_no_new_privileges: true
+docker_live_restore: true
+docker_userns_remap: dockremap
+docker_userns_remap_user: "{{ docker_userns_remap }}"
+docker_userns_remap_subuid_start: 100000
+docker_userns_remap_subuid_count: 65536

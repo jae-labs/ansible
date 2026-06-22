@@ -1,0 +1,164 @@
+name: "Ansible Ad-hoc Configuration"
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      preset:
+        description: "Playbook tag to execute"
+        required: true
+        type: choice
+        default: "baseline"
+        options:
+          - "all"
+          - "common"
+          - "baseline"
+          - "os_hardening"
+          - "security"
+          - "iptables"
+          - "firewall"
+          - "ssh_hardening"
+          - "fail2ban"
+          - "ubuntu_pro"
+          - "auditd"
+          - "falco"
+          - "swap"
+          - "tuned"
+          - "docker"
+          - "cadvisor"
+          - "monitoring"
+          - "nomad"
+          - "web"
+          - "traefik"
+          - "cloudflare_tunnel"
+          - "grafana_alloy"
+      check_mode:
+        description: "Dry run (Check mode)"
+        required: true
+        type: boolean
+        default: false
+
+jobs:
+  ansible-adhoc:
+    name: "Ansible Ad-hoc Run"
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+      TF_VAR_SSH_INGRESS_CIDR: ${{ secrets.TF_VAR_SSH_INGRESS_CIDR }}
+      GRAFANA_CLOUD_PROMETHEUS_URL: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_URL }}
+      GRAFANA_CLOUD_PROMETHEUS_USERNAME: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_USERNAME }}
+      GRAFANA_CLOUD_PROMETHEUS_TOKEN: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_TOKEN }}
+      GRAFANA_CLOUD_LOKI_URL: ${{ secrets.GRAFANA_CLOUD_LOKI_URL }}
+      GRAFANA_CLOUD_LOKI_USERNAME: ${{ secrets.GRAFANA_CLOUD_LOKI_USERNAME }}
+      GRAFANA_CLOUD_LOKI_TOKEN: ${{ secrets.GRAFANA_CLOUD_LOKI_TOKEN }}
+      GRAFANA_CLOUD_TEMPO_URL: ${{ secrets.GRAFANA_CLOUD_TEMPO_URL }}
+      GRAFANA_CLOUD_TEMPO_USERNAME: ${{ secrets.GRAFANA_CLOUD_TEMPO_USERNAME }}
+      GRAFANA_CLOUD_TEMPO_TOKEN: ${{ secrets.GRAFANA_CLOUD_TEMPO_TOKEN }}
+      GRAFANA_CLOUD_PROFILES_URL: ${{ secrets.GRAFANA_CLOUD_PROFILES_URL }}
+      GRAFANA_CLOUD_PROFILES_USERNAME: ${{ secrets.GRAFANA_CLOUD_PROFILES_USERNAME }}
+      GRAFANA_CLOUD_PROFILES_TOKEN: ${{ secrets.GRAFANA_CLOUD_PROFILES_TOKEN }}
+      HONEYCOMB_API_KEY: ${{ secrets.HONEYCOMB_API_KEY }}
+      CONCIERGE_TRACE_SAMPLE_PERCENTAGE: ${{ vars.CONCIERGE_TRACE_SAMPLE_PERCENTAGE }}
+      CONCIERGE_TRACE_SLOW_THRESHOLD_MS: ${{ vars.CONCIERGE_TRACE_SLOW_THRESHOLD_MS }}
+      UBUNTU_PRO_TOKEN: ${{ secrets.UBUNTU_PRO_TOKEN }}
+      LANDSCAPE_ACCOUNT_NAME: ${{ secrets.LANDSCAPE_ACCOUNT_NAME }}
+      LANDSCAPE_REGISTRATION_KEY: ${{ secrets.LANDSCAPE_REGISTRATION_KEY }}
+    concurrency:
+      group: ansible-adhoc-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - name: Honeycomb Buildevents
+        uses: honeycombio/gha-buildevents@1dad608d8534ec0fdf57e7503ceb8256b5ddc531 # ratchet:honeycombio/gha-buildevents@v4.0.0
+        with:
+          apikey: ${{ secrets.HONEYCOMB_API_KEY }}
+          dataset: gha-builds
+          status: ${{ job.status }}
+
+      - name: Checkout repo
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # ratchet:actions/checkout@v6.0.3
+
+      - name: Connect runner to Tailscale
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # ratchet:tailscale/github-action@v4.1.2
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_CI_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_CI_OAUTH_CLIENT_SECRET }}
+          tags: tag:ci
+          hostname: gha-ansible
+
+      - name: Install Ansible
+        run: |
+          python3 -m pip install --user --upgrade pip
+          python3 -m pip install --user -r requirements.txt
+
+      - name: Add local Python bin to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Bootstrap Ansible dependencies
+        run: |
+          bash bootstrap.sh
+
+      - name: Configure OCI auth
+        run: |
+          mkdir -p "$HOME/.oci"
+          printf '%s' "$OCI_PRIVATE_KEY" > "$HOME/.oci/oci_api_key.pem"
+          chmod 600 "$HOME/.oci/oci_api_key.pem"
+          {
+            printf '[DEFAULT]\n'
+            printf 'user=%s\n' "$OCI_USER_OCID"
+            printf 'fingerprint=%s\n' "$OCI_FINGERPRINT"
+            printf 'tenancy=%s\n' "$OCI_TENANCY_OCID"
+            printf 'region=%s\n' "$OCI_REGION"
+            printf 'key_file=%s/.oci/oci_api_key.pem\n' "$HOME"
+            if [ -n "${OCI_PRIVATE_KEY_PASSPHRASE:-}" ]; then
+              printf 'pass_phrase=%s\n' "$OCI_PRIVATE_KEY_PASSPHRASE"
+            fi
+          } > "$HOME/.oci/config"
+          chmod 600 "$HOME/.oci/config"
+        env:
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_PRIVATE_KEY_PASSPHRASE: ${{ secrets.OCI_PRIVATE_KEY_PASSPHRASE }}
+
+      - name: Configure SSH
+        run: |
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$OCI_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+        env:
+          OCI_SSH_PRIVATE_KEY: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
+
+      - name: Build Ansible arguments
+        id: build-args
+        run: |
+          TAGS_ARG=""
+          if [ "${{ inputs.preset }}" != "all" ]; then
+            TAGS_ARG="--tags ${{ inputs.preset }}"
+          fi
+
+          CHECK_ARG=""
+          if [ "${{ inputs.check_mode }}" = "true" ]; then
+            CHECK_ARG="--check"
+          fi
+
+          echo "ansible_args=${TAGS_ARG} ${CHECK_ARG}" >> "$GITHUB_OUTPUT"
+
+      - name: Ansible syntax check
+        run: |
+          ansible-playbook -i inventories/production/oci.oci.yml playbooks/webservers.yml --syntax-check ${{ steps.build-args.outputs.ansible_args }} --private-key="$HOME/.ssh/id_ed25519" --ssh-common-args="-o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+
+      - name: Execute Ansible ad-hoc playbook
+        run: |
+          ansible-playbook -i inventories/production/oci.oci.yml playbooks/webservers.yml ${{ steps.build-args.outputs.ansible_args }} --private-key="$HOME/.ssh/id_ed25519" --ssh-common-args="-o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+
+      - name: Cleanup deploy credentials
+        if: always()
+        run: |
+          rm -f "$HOME/.oci/config" "$HOME/.oci/oci_api_key.pem"
+          rm -f "$HOME/.ssh/id_ed25519"

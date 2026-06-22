@@ -1,0 +1,116 @@
+---
+- name: Run hardening assertions
+  ansible.builtin.import_tasks: assertions.yml
+  when: hardening_enabled | bool
+
+- name: Manage hardening packages
+  ansible.builtin.import_tasks: packages.yml
+  when: hardening_enabled | bool
+
+- name: Configure file integrity monitoring
+  ansible.builtin.import_tasks: aide.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_aide | bool
+
+- name: Configure filesystem modules
+  ansible.builtin.import_tasks: filesystem_modules.yml
+  when: hardening_enabled | bool
+
+- name: Configure service exposure
+  ansible.builtin.import_tasks: services.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_services | bool
+
+- name: Configure mount options
+  ansible.builtin.import_tasks: mounts.yml
+  when: hardening_enabled | bool
+
+- name: Configure sysctl settings
+  ansible.builtin.import_tasks: sysctl.yml
+  when: hardening_enabled | bool
+
+- name: Configure procfs privacy
+  ansible.builtin.import_tasks: procfs.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_procfs_privacy | bool
+
+- name: Configure cron permissions
+  ansible.builtin.import_tasks: cron.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_cron | bool
+
+- name: Configure PAM
+  ansible.builtin.import_tasks: pam.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_pam | bool
+
+- name: Configure password policy
+  ansible.builtin.import_tasks: password_policy.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_password_policy | bool
+
+- name: Configure account policy
+  ansible.builtin.import_tasks: account_policy.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_account_policy | bool
+
+- name: Configure shell environment
+  ansible.builtin.import_tasks: shell_env.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_shell_environment | bool
+
+- name: Configure sudo policy
+  ansible.builtin.import_tasks: sudo.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_sudo | bool
+
+- name: Configure banners
+  ansible.builtin.import_tasks: banners.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_banners | bool
+
+- name: Configure MOTD
+  ansible.builtin.import_tasks: motd.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_motd | bool
+
+- name: Configure dotfiles
+  ansible.builtin.import_tasks: dotfiles.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_dotfiles | bool
+
+- name: Configure SUID and SGID policy
+  ansible.builtin.import_tasks: suid_sgid.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_suid_sgid | bool
+
+- name: Configure SSH keys
+  ansible.builtin.import_tasks: ssh_keys.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_ssh_server | bool
+
+- name: Configure SSH server
+  ansible.builtin.import_tasks: ssh_server.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_ssh_server | bool
+
+- name: Configure SSH client
+  ansible.builtin.import_tasks: ssh_client.yml
+  when:
+    - hardening_enabled | bool
+    - hardening_manage_ssh_client | bool

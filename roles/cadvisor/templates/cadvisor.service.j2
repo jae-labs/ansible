@@ -1,0 +1,36 @@
+[Unit]
+Description=cAdvisor container metrics exporter
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User={{ cadvisor_user }}
+Group={{ cadvisor_group }}
+ExecStart={{ cadvisor_binary_path }} \
+  --listen_ip={{ cadvisor_listen_ip }} \
+  --port={{ cadvisor_listen_port }} \
+  --docker_only=true \
+  --store_container_labels=true
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectClock=yes
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadOnlyPaths={{ cadvisor_docker_socket }}
+
+[Install]
+WantedBy=multi-user.target

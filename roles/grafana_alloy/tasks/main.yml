@@ -1,0 +1,119 @@
+---
+- name: Remove legacy Grafana APT repository file
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/grafana.list
+    state: absent
+
+- name: Ensure apt keyrings directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+
+- name: Download Grafana GPG key
+  ansible.builtin.get_url:
+    url: https://apt.grafana.com/gpg.key
+    dest: /etc/apt/keyrings/grafana.key
+    mode: "0644"
+
+- name: Add Grafana APT repository
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: [deb]
+    uris: [https://apt.grafana.com]
+    suites: [stable]
+    components: [main]
+    signed_by: /etc/apt/keyrings/grafana.key
+    state: present
+
+- name: Install Grafana Alloy
+  ansible.builtin.apt:
+    name: "alloy={{ grafana_alloy_version }}"
+    state: present
+    update_cache: true
+
+- name: Add alloy user to systemd-journal and adm groups
+  ansible.builtin.user:
+    name: alloy
+    groups:
+      - systemd-journal
+      - adm
+      - docker
+    append: true
+  notify: Restart alloy
+
+- name: Remove stale alloy root override
+  ansible.builtin.file:
+    path: /etc/systemd/system/alloy.service.d/user-override.conf
+    state: absent
+  notify: Restart alloy
+
+- name: Ensure alloy working directory ownership
+  ansible.builtin.file:
+    path: /var/lib/alloy
+    state: directory
+    owner: alloy
+    group: alloy
+    mode: "0750"
+    recurse: true
+  notify: Restart alloy
+
+- name: Ensure alloy storage directory exists
+  ansible.builtin.file:
+    path: /var/lib/alloy/data
+    state: directory
+    owner: alloy
+    group: alloy
+    mode: "0750"
+  notify: Restart alloy
+
+- name: Ensure alloy config directory exists
+  ansible.builtin.file:
+    path: "{{ grafana_alloy_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Render Grafana Alloy configuration
+  ansible.builtin.template:
+    src: config.alloy.j2
+    dest: "{{ grafana_alloy_config_path }}"
+    owner: alloy
+    group: alloy
+    mode: "0600"
+  no_log: true
+  notify: Restart alloy
+
+- name: Ensure systemd override directory for Grafana Alloy exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/alloy.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy systemd drop-in for alloy permissions and config directory
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/alloy.service.d/override.conf
+    content: |
+      [Service]
+      # alloy needs DAC_READ_SEARCH to read host log files outside /var/log
+      # that are not group-readable by adm.
+      CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+      AmbientCapabilities=CAP_DAC_READ_SEARCH
+      # Clear ExecStart to override
+      ExecStart=
+      # Run Alloy on the configuration directory
+      ExecStart=/usr/bin/alloy run $CUSTOM_ARGS --storage.path=/var/lib/alloy/data {{ grafana_alloy_config_dir }}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart alloy
+
+- name: Ensure Grafana Alloy service is enabled and started
+  ansible.builtin.systemd:
+    name: "{{ grafana_alloy_service_name }}"
+    enabled: true
+    state: started
+    daemon_reload: true

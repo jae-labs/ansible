@@ -1,0 +1,45 @@
+---
+- name: Validate SSH configuration
+  ansible.builtin.command:
+    argv:
+      - "{{ hardening_sshd_binary }}"
+      - -t
+  listen: Reload hardening ssh
+  changed_when: false
+
+- name: Restart SSH service
+  ansible.builtin.service:
+    name: "{{ hardening_ssh_service_name }}"
+    state: restarted
+  listen: Reload hardening ssh
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+  listen: Reload hardening systemd
+
+- name: Restart journald
+  ansible.builtin.systemd:
+    name: systemd-journald.service
+    state: restarted
+  listen: Restart hardening journald
+
+- name: Remount changed filesystems
+  ansible.posix.mount:
+    path: "{{ item }}"
+    state: remounted
+  loop: "{{ hardening_changed_mounts | default([]) }}"
+  when: (hardening_changed_mounts | default([])) | length > 0
+  listen: Remount hardening filesystems
+
+- name: Refresh initramfs
+  ansible.builtin.command: update-initramfs -u
+  changed_when: true
+  listen: Refresh hardening initramfs
+
+- name: Apply pam-auth-update
+  ansible.builtin.command: pam-auth-update --package
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  changed_when: true
+  listen: Refresh hardening pam

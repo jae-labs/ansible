@@ -1,0 +1,44 @@
+---
+- name: Get user accounts
+  ansible.builtin.command: "awk -F: '{print $1}' /etc/passwd"
+  changed_when: false
+  check_mode: false
+  register: hardening_user_accounts
+
+- name: Remove rhosts files
+  ansible.builtin.file:
+    path: "~{{ item }}/.rhosts"
+    state: absent
+  loop: "{{ hardening_user_accounts.stdout_lines | default([]) }}"
+
+- name: Remove netrc files
+  ansible.builtin.file:
+    path: "~{{ item }}/.netrc"
+    state: absent
+  loop: "{{ hardening_user_accounts.stdout_lines | default([]) }}"
+  when: item not in hardening_netrc_whitelist_users
+
+- name: Remove hosts.equiv
+  ansible.builtin.file:
+    path: /etc/hosts.equiv
+    state: absent
+
+- name: Set critical account file permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /etc/passwd, group: root, mode: "0644" }
+    - { path: /etc/group, group: root, mode: "0644" }
+    - { path: /etc/passwd-, group: root, mode: "0644" }
+    - { path: /etc/group-, group: root, mode: "0644" }
+    - { path: /etc/shadow, group: shadow, mode: "0640" }
+    - { path: /etc/gshadow, group: shadow, mode: "0640" }
+    - { path: /etc/shadow-, group: shadow, mode: "0640" }
+    - { path: /etc/gshadow-, group: shadow, mode: "0640" }
+    - { path: /etc/shells, group: root, mode: "0644" }
+  failed_when: false
+  loop_control:
+    label: "{{ item.path }}"

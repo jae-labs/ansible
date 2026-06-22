@@ -1,0 +1,17 @@
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+-A INPUT -i lo -j ACCEPT
+-A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+{% if iptables_allow_icmp %}
+-A INPUT -p icmp -j ACCEPT
+{% endif %}
+-A INPUT -p tcp -s {{ iptables_ssh_ingress_cidr }} --dport 22 -j ACCEPT
+{% if iptables_container_otel_subnet | length > 0 and iptables_container_otel_ports | length > 0 %}
+-A INPUT -p tcp -s {{ iptables_container_otel_subnet }} -m multiport --dports {{ iptables_container_otel_ports | join(',') }} -j ACCEPT
+{% endif %}
+{% for port in iptables_allowed_tcp_ports %}
+-A INPUT -p tcp --dport {{ port }} -j ACCEPT
+{% endfor %}
+COMMIT

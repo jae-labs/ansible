@@ -1,0 +1,84 @@
+- name: Configure webservers
+  hosts: all
+  gather_facts: true
+  become: true
+
+  tasks:
+    - name: Configure baseline system (OS updates, etc.)
+      ansible.builtin.import_role:
+        name: common
+      tags: [common, baseline]
+
+    - name: Apply hardening
+      ansible.builtin.import_role:
+        name: hardening
+      tags: [hardening, security, baseline]
+
+    - name: Configure host firewall
+      ansible.builtin.import_role:
+        name: iptables
+      tags: [iptables, firewall, baseline]
+
+    - name: Configure fail2ban
+      ansible.builtin.import_role:
+        name: fail2ban
+      tags: [fail2ban, security, baseline]
+
+    - name: Configure Ubuntu Pro
+      ansible.builtin.import_role:
+        name: ubuntu_pro
+      tags: [ubuntu_pro, security, baseline]
+
+    - name: Configure auditd
+      ansible.builtin.import_role:
+        name: auditd
+      tags: [auditd, security, baseline]
+
+    - name: Configure Falco
+      ansible.builtin.import_role:
+        name: falco
+      tags: [falco, security, baseline]
+
+    - name: Configure swap
+      ansible.builtin.import_role:
+        name: swap
+      tags: [swap, baseline]
+
+    - name: Configure TuneD
+      ansible.builtin.import_role:
+        name: tuned
+      tags: [tuned, baseline]
+
+    - name: Configure Docker
+      ansible.builtin.import_role:
+        name: docker
+      tags: [docker, baseline]
+
+    - name: Deploy cAdvisor
+      ansible.builtin.import_role:
+        name: cadvisor
+      tags: [cadvisor, monitoring]
+
+    - name: Install and configure Nomad
+      ansible.builtin.import_role:
+        name: nomad
+      tags: [nomad, baseline]
+
+    - name: Configure Traefik
+      ansible.builtin.import_role:
+        name: traefik
+      tags: [traefik, web]
+
+    - name: Apply pending handlers before tunnel startup
+      ansible.builtin.meta: flush_handlers
+      tags: [always]
+
+    - name: Configure Cloudflare Tunnel
+      ansible.builtin.import_role:
+        name: cloudflare_tunnel
+      tags: [cloudflare_tunnel, web]
+
+    - name: Deploy Grafana Alloy
+      ansible.builtin.import_role:
+        name: grafana_alloy
+      tags: [grafana_alloy, monitoring]

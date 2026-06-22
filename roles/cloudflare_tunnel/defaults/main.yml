@@ -1,0 +1,20 @@
+cloudflare_tunnel_package_name: cloudflared
+cloudflare_tunnel_service_name: cloudflared
+cloudflare_tunnel_user: cloudflare
+cloudflare_tunnel_group: cloudflare
+cloudflare_tunnel_binary_path: /usr/bin/cloudflared
+cloudflare_tunnel_token_env_var: CLOUDFLARE_TUNNEL_TOKEN
+cloudflare_tunnel_token_file: /etc/cloudflared/token
+cloudflare_tunnel_systemd_unit_path: /etc/systemd/system/cloudflared.service
+cloudflare_tunnel_origin_url: http://127.0.0.1:8080
+cloudflare_tunnel_metrics_addr: 127.0.0.1:49312
+# Pinned to the latest stable in the Cloudflare apt repo. Bump on tested
+# upgrades; stale pins cause apt to refuse downgrades on hosts that
+# auto-updated.
+cloudflare_tunnel_version: "2026.6.0"
+cloudflare_tunnel_apt_repo_name: cloudflared
+cloudflare_tunnel_apt_repo_uri: https://pkg.cloudflare.com/cloudflared
+cloudflare_tunnel_apt_repo_suite: any
+cloudflare_tunnel_apt_repo_components:
+  - main
+cloudflare_tunnel_apt_repo_signed_by: https://pkg.cloudflare.com/cloudflare-main.gpg

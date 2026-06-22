@@ -1,0 +1,456 @@
+---
+hardening_enabled: true
+hardening_supported_distribution: Ubuntu
+hardening_supported_major_version: "24"
+hardening_min_ansible_version: "2.16.0"
+
+hardening_user_paths:
+  - /usr/local/sbin
+  - /usr/local/bin
+  - /usr/sbin
+  - /usr/bin
+  - /sbin
+  - /bin
+hardening_extra_user_paths: []
+hardening_warning_banner: |
+  Authorized uses only. All activity may be monitored and reported.
+
+hardening_manage_packages: true
+hardening_remove_insecure_packages: true
+hardening_insecure_packages:
+  - ftp
+  - inetutils-telnet
+  - xinetd
+  - inetd
+  - ypserv
+  - tnftp
+  - telnet
+  - rpcbind
+  - rsync
+  - telnet-server
+  - rsh-server
+  - prelink
+hardening_required_packages:
+  - aide
+  - aide-common
+  - libpam-pwquality
+  - openssh-server
+  - openssh-client
+  - kmod
+
+hardening_manage_aide: true
+hardening_aide_database_path: /var/lib/aide/aide.db
+hardening_aide_init_command:
+  - aideinit
+  - --yes
+  - --force
+
+hardening_manage_services: true
+hardening_disabled_services:
+  - apport.service
+  - rpcbind.service
+  - rsync.service
+
+hardening_disable_overlayfs: false
+hardening_disable_filesystem_modules:
+  - cramfs
+  - freevxfs
+  - hfs
+  - hfsplus
+  - jffs2
+  - squashfs
+  - usb-storage
+  - udf
+  - vfat
+  - dccp
+  - rds
+  - sctp
+  - tipc
+hardening_filesystem_module_exclusions: []
+
+hardening_manage_procfs_privacy: false
+hardening_proc_mount_options: rw,nosuid,nodev,noexec,relatime
+hardening_proc_hidepid: "2"
+
+hardening_sysctl_file: /etc/sysctl.d/90-hardening.conf
+hardening_sysctl_settings:
+  fs.protected_hardlinks: 1
+  fs.protected_symlinks: 1
+  fs.protected_fifos: 1
+  fs.protected_regular: 2
+  fs.suid_dumpable: 0
+  kernel.core_uses_pid: 1
+  kernel.kptr_restrict: 2
+  kernel.kexec_load_disabled: 1
+  kernel.sysrq: 0
+  kernel.randomize_va_space: 2
+  kernel.yama.ptrace_scope: 2
+  net.ipv4.ip_forward: 1
+  net.ipv6.conf.all.forwarding: 0
+  net.ipv4.conf.all.rp_filter: 2
+  net.ipv4.conf.default.rp_filter: 2
+  net.ipv4.icmp_echo_ignore_broadcasts: 1
+  net.ipv4.icmp_ignore_bogus_error_responses: 1
+  net.ipv4.icmp_ratelimit: 100
+  net.ipv4.icmp_ratemask: 88089
+  net.ipv4.tcp_timestamps: 0
+  net.ipv4.conf.all.arp_ignore: 1
+  net.ipv4.conf.all.arp_announce: 2
+  net.ipv4.tcp_rfc1337: 1
+  net.ipv4.tcp_syncookies: 1
+  net.ipv4.conf.all.shared_media: 1
+  net.ipv4.conf.default.shared_media: 1
+  net.ipv4.conf.all.accept_source_route: 0
+  net.ipv4.conf.default.accept_source_route: 0
+  net.ipv6.conf.all.accept_source_route: 0
+  net.ipv6.conf.default.accept_source_route: 0
+  net.ipv4.conf.all.send_redirects: 0
+  net.ipv4.conf.default.send_redirects: 0
+  net.ipv4.conf.all.log_martians: 1
+  net.ipv4.conf.default.log_martians: 1
+  net.ipv4.conf.default.accept_redirects: 0
+  net.ipv4.conf.all.accept_redirects: 0
+  net.ipv4.conf.all.secure_redirects: 0
+  net.ipv4.conf.default.secure_redirects: 0
+  net.ipv6.conf.default.accept_redirects: 0
+  net.ipv6.conf.all.accept_redirects: 0
+  net.ipv6.conf.all.accept_ra: 0
+  net.ipv6.conf.default.accept_ra: 0
+  net.ipv6.conf.default.router_solicitations: 0
+  net.ipv6.conf.all.router_solicitations: 0
+  net.ipv6.conf.default.accept_ra_rtr_pref: 0
+  net.ipv6.conf.default.accept_ra_pinfo: 0
+  net.ipv6.conf.default.accept_ra_defrtr: 0
+  net.ipv6.conf.default.autoconf: 0
+  net.ipv6.conf.all.autoconf: 0
+  net.ipv6.conf.default.dad_transmits: 0
+  net.ipv6.conf.default.max_addresses: 1
+  vm.mmap_min_addr: 65536
+  vm.mmap_rnd_bits: 32
+  vm.mmap_rnd_compat_bits: 16
+  kernel.unprivileged_userns_clone: 0
+  kernel.unprivileged_bpf_disabled: 1
+hardening_sysctl_overrides: {}
+hardening_sysctl_unsupported_entries: []
+
+hardening_mounts:
+  - path: /dev/shm
+    enabled: true
+    src: tmpfs
+    fstype: tmpfs
+    opts: rw,nosuid,nodev,noexec
+    owner: root
+    group: root
+    mode: "1777"
+  - path: /run
+    enabled: true
+    src: tmpfs
+    fstype: tmpfs
+    opts: rw,nosuid,nodev
+    owner: root
+    group: root
+    mode: "0755"
+  - path: /tmp
+    enabled: false
+    src: ""
+    fstype: ""
+    opts: rw,nosuid,nodev,noexec
+    owner: root
+    group: root
+    mode: "1777"
+  - path: /home
+    enabled: false
+    src: ""
+    fstype: ""
+    opts: rw,nosuid,nodev
+    owner: root
+    group: root
+    mode: "0755"
+  - path: /var/tmp
+    enabled: false
+    src: ""
+    fstype: ""
+    opts: rw,nosuid,nodev,noexec
+    owner: root
+    group: root
+    mode: "1777"
+  - path: /var/log
+    enabled: false
+    src: ""
+    fstype: ""
+    opts: rw,nosuid,nodev,noexec
+    owner: root
+    group: syslog
+    mode: "0755"
+  - path: /var/log/audit
+    enabled: false
+    src: ""
+    fstype: ""
+    opts: rw,nosuid,nodev,noexec
+    owner: root
+    group: root
+    mode: "0700"
+
+hardening_manage_cron: true
+hardening_cron_allow_users: []
+hardening_at_allow_users: []
+
+hardening_manage_password_policy: true
+hardening_password_max_days: 365
+hardening_password_min_days: 1
+hardening_password_warn_days: 7
+hardening_password_inactive_days: 45
+hardening_password_remember: 24
+hardening_password_hash_algorithm: yescrypt
+hardening_password_min_length: 14
+hardening_password_difok: 2
+hardening_password_min_classes: 4
+hardening_password_max_repeat: 3
+hardening_password_max_sequence: 3
+hardening_password_enforce_root: true
+hardening_password_dictionary_check: true
+hardening_password_quality_enforce: true
+
+hardening_manage_pam: true
+hardening_faillock_deny: 3
+hardening_faillock_unlock_time: 900
+hardening_faillock_root_mode: even_deny_root
+hardening_manage_pam_profiles: false
+hardening_pam_files_dir: /usr/share/pam-configs
+hardening_pam_faillock_filename: faillock
+hardening_pam_faillock_notify_filename: faillock_notify
+hardening_pam_pwquality_filename: pwquality
+hardening_pam_pwhistory_filename: pwhistory
+hardening_pam_unix_filename: pam_unix
+hardening_manage_effective_pam_stack: false
+hardening_manage_su_restrictions: false
+hardening_pam_wheel_group: wheel
+
+hardening_manage_account_policy: true
+hardening_root_password_aging: false
+hardening_user_password_aging: true
+hardening_remove_additional_uid_zero_users: false
+hardening_ignore_users: []
+hardening_ignore_home_directory_users: []
+hardening_users_without_password_aging: []
+hardening_system_users_always_ignored:
+  - root
+  - sync
+  - shutdown
+  - halt
+hardening_system_uid_min: 100
+hardening_system_uid_max: 999
+hardening_interactive_uid_min: 1000
+hardening_interactive_uid_max: 60000
+hardening_nologin_shell: /usr/sbin/nologin
+hardening_enforce_root_home_mode: true
+hardening_enforce_user_home_mode: true
+
+hardening_manage_shell_environment: true
+hardening_shell_timeout: 900
+hardening_shell_timeout_file: /etc/profile.d/tmout.sh
+hardening_umask: "027"
+hardening_root_umask: "0027"
+hardening_enforce_user_init_file_modes: true
+hardening_user_init_file_mode: "0640"
+hardening_user_init_files:
+  - .bashrc
+  - .profile
+  - .bash_profile
+  - .zshrc
+
+hardening_manage_sudo: true
+hardening_sudo_logfile: /var/log/sudo.log
+hardening_sudo_require_reauthentication: false
+
+hardening_manage_banners: true
+hardening_manage_motd: true
+hardening_disable_dynamic_motd: true
+
+hardening_manage_dotfiles: true
+hardening_netrc_whitelist_users: []
+
+hardening_manage_suid_sgid: true
+hardening_suid_sgid_blacklist: []
+hardening_suid_sgid_whitelist: []
+hardening_remove_unknown_suid_sgid: false
+hardening_system_suid_sgid_blacklist:
+  - /usr/bin/rcp
+  - /usr/bin/rlogin
+  - /usr/bin/rsh
+  - /usr/libexec/openssh/ssh-keysign
+  - /usr/lib/openssh/ssh-keysign
+  - /sbin/netreport
+  - /usr/sbin/usernetctl
+  - /usr/sbin/userisdnctl
+  - /usr/sbin/pppd
+  - /usr/bin/lockfile
+  - /usr/bin/mail-lock
+  - /usr/bin/mail-unlock
+  - /usr/bin/mail-touchlock
+  - /usr/bin/dotlockfile
+  - /usr/bin/arping
+  - /usr/sbin/uuidd
+  - /usr/bin/mtr
+  - /usr/lib/evolution/camel-lock-helper-1.2
+  - /usr/lib/pt_chown
+  - /usr/lib/eject/dmcrypt-get-device
+  - /usr/lib/mc/cons.saver
+hardening_system_suid_sgid_whitelist:
+  - /bin/mount
+  - /bin/ping
+  - /bin/su
+  - /usr/bin/su
+  - /bin/umount
+  - /sbin/pam_timestamp_check
+  - /sbin/unix_chkpwd
+  - /usr/bin/at
+  - /usr/bin/gpasswd
+  - /usr/bin/locate
+  - /usr/bin/newgrp
+  - /usr/bin/passwd
+  - /usr/bin/ssh-agent
+  - /usr/libexec/utempter/utempter
+  - /usr/sbin/lockdev
+  - /usr/sbin/sendmail.sendmail
+  - /usr/bin/expiry
+  - /bin/ping6
+  - /usr/bin/traceroute6.iputils
+  - /sbin/mount.nfs
+  - /sbin/umount.nfs
+  - /sbin/mount.nfs4
+  - /sbin/umount.nfs4
+  - /usr/bin/crontab
+  - /usr/bin/wall
+  - /usr/bin/write
+  - /usr/bin/screen
+  - /usr/bin/mlocate
+  - /usr/bin/chage
+  - /usr/bin/chfn
+  - /usr/bin/chsh
+  - /bin/fusermount
+  - /usr/bin/pkexec
+  - /usr/bin/sudo
+  - /usr/bin/sudoedit
+  - /usr/sbin/postdrop
+  - /usr/sbin/postqueue
+  - /usr/sbin/suexec
+  - /usr/lib/squid/ncsa_auth
+  - /usr/lib/squid/pam_auth
+  - /usr/kerberos/bin/ksu
+  - /usr/sbin/ccreds_validate
+  - /usr/bin/Xorg
+  - /usr/bin/X
+  - /usr/lib/dbus-1.0/dbus-daemon-launch-helper
+  - /usr/lib/vte/gnome-pty-helper
+  - /usr/lib/libvte9/gnome-pty-helper
+  - /usr/lib/libvte-2.90-9/gnome-pty-helper
+
+hardening_manage_ssh_server: true
+hardening_manage_ssh_client: true
+hardening_ssh_service_name: ssh
+hardening_sshd_binary: /usr/sbin/sshd
+hardening_ssh_runtime_dir: /run/sshd
+hardening_ssh_dropin_dir: /etc/ssh/sshd_config.d
+hardening_ssh_dropin_path: "{{ hardening_ssh_dropin_dir }}/50-hardening.conf"
+hardening_ssh_dropin_cleanup_paths:
+  - /etc/ssh/sshd_config.d/50-ssh-hardening.conf
+  - /etc/ssh/sshd_config.d/60-cloudimg-settings.conf
+hardening_ssh_host_keys_dir: /etc/ssh
+hardening_ssh_server_ports: ["22"]
+hardening_ssh_listen_addresses: [0.0.0.0]
+hardening_ipv6_enabled: true
+hardening_ssh_enforce_key_only_auth: false
+hardening_ssh_server_password_login: true
+hardening_ssh_permit_root_login: "no"
+hardening_ssh_login_grace_time: 60
+hardening_ssh_max_auth_retries: 2
+hardening_ssh_max_sessions: 10
+hardening_ssh_max_startups: 10:30:60
+hardening_ssh_pubkey_authentication: true
+hardening_ssh_authentication_methods: publickey
+hardening_ssh_challenge_response_authentication: false
+hardening_ssh_use_pam: true
+hardening_ssh_authorized_keys_file: ""
+hardening_ssh_allow_tcp_forwarding: "no"
+hardening_ssh_gateway_ports: false
+hardening_ssh_allow_agent_forwarding: false
+hardening_ssh_x11_forwarding: false
+hardening_ssh_permit_tunnel: "no"
+hardening_ssh_client_alive_interval: 300
+hardening_ssh_client_alive_count: 3
+hardening_ssh_use_dns: false
+hardening_ssh_compression: false
+hardening_ssh_server_accept_env: ""
+hardening_ssh_syslog_facility: AUTH
+hardening_ssh_log_level: INFO
+hardening_ssh_strict_modes: true
+hardening_ssh_print_motd: false
+hardening_ssh_print_last_log: false
+hardening_ssh_print_distro_banner: false
+hardening_ssh_gssapi_support: false
+hardening_ssh_gssapi_delegation: false
+hardening_ssh_allowed_users: []
+hardening_ssh_allowed_groups: []
+hardening_ssh_denied_users: []
+hardening_ssh_denied_groups: []
+hardening_ssh_server_revoked_keys: []
+hardening_ssh_server_match_address: []
+hardening_ssh_server_match_group: []
+hardening_ssh_server_match_user: []
+hardening_ssh_server_match_local_port: []
+hardening_ssh_host_rsa_key_size: 4096
+hardening_ssh_host_certificates: []
+hardening_ssh_host_key_algorithms: []
+hardening_ssh_moduli_file: /etc/ssh/moduli
+hardening_ssh_moduli_minimum: 2048
+hardening_ssh_client_config_file: /etc/ssh/ssh_config
+hardening_ssh_client_port: "22"
+hardening_ssh_client_password_login: false
+hardening_ssh_client_compression: false
+hardening_ssh_client_host_key_algorithms: []
+hardening_ssh_custom_server_options: []
+hardening_ssh_custom_client_options: []
+
+hardening_ssh_macs_53_default:
+  - hmac-ripemd160
+  - hmac-sha1
+hardening_ssh_macs_59_default:
+  - hmac-sha2-512
+  - hmac-sha2-256
+  - hmac-ripemd160
+hardening_ssh_macs_66_default:
+  - hmac-sha2-512-etm@openssh.com
+  - hmac-sha2-256-etm@openssh.com
+  - umac-128-etm@openssh.com
+  - hmac-sha2-512
+  - hmac-sha2-256
+hardening_ssh_macs_76_default:
+  - hmac-sha2-512-etm@openssh.com
+  - hmac-sha2-256-etm@openssh.com
+  - hmac-sha2-512
+  - hmac-sha2-256
+hardening_ssh_ciphers_53_default:
+  - aes256-ctr
+  - aes192-ctr
+  - aes128-ctr
+hardening_ssh_ciphers_66_default:
+  - chacha20-poly1305@openssh.com
+  - aes256-gcm@openssh.com
+  - aes128-gcm@openssh.com
+  - aes256-ctr
+  - aes192-ctr
+  - aes128-ctr
+hardening_ssh_kex_59_default:
+  - diffie-hellman-group-exchange-sha256
+hardening_ssh_kex_66_default:
+  - curve25519-sha256@libssh.org
+  - diffie-hellman-group-exchange-sha256
+hardening_ssh_kex_80_default:
+  - sntrup4591761x25519-sha512@tinyssh.org
+  - curve25519-sha256@libssh.org
+  - diffie-hellman-group-exchange-sha256
+hardening_ssh_kex_85_default:
+  - sntrup761x25519-sha512@openssh.com
+  - curve25519-sha256@libssh.org
+  - diffie-hellman-group-exchange-sha256

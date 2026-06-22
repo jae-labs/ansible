@@ -1,0 +1,9 @@
+---
+- name: Disable unused services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+    masked: true
+  loop: "{{ hardening_disabled_services }}"
+  failed_when: false

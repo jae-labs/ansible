@@ -1,0 +1,16 @@
+# Lefthook Git Hooks
+# https://github.com/evilmartians/lefthook
+#
+# Tool versions are pinned via mise (see mise.toml).
+
+pre-commit:
+  commands:
+    ansible-lint:
+      # Local pre-commit must use an ansible-lint that is compatible with the
+      # local Python. The runtime contract (ansible-core 2.21.*) is enforced
+      # by bootstrap.sh and applies only to the OCI host, not to this dev
+      # hook. On Python 3.14 use ansible-lint 25.9.2 (homebrew bundles its
+      # own ansible-core and works out of the box).
+      env:
+        ANSIBLE_ROLES_PATH: roles
+      run: ansible-lint

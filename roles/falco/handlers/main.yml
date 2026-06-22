@@ -1,0 +1,6 @@
+---
+- name: Restart falco-modern-bpf
+  ansible.builtin.service:
+    name: "{{ falco_service_name }}"
+    state: restarted
+  when: not (ansible_check_mode and falco_package_result is changed)

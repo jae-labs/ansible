@@ -1,0 +1,33 @@
+---
+- name: Install auditd packages
+  ansible.builtin.apt:
+    name:
+      - auditd
+    state: present
+    update_cache: true
+  register: auditd_package_result
+
+- name: Deploy auditd configuration
+  ansible.builtin.template:
+    src: auditd.conf.j2
+    dest: /etc/audit/auditd.conf
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Restart auditd
+
+- name: Deploy auditd rules
+  ansible.builtin.template:
+    src: audit.rules.j2
+    dest: "{{ auditd_rules_path }}"
+    owner: root
+    group: root
+    mode: "0640"
+  notify: Reload auditd rules
+
+- name: Ensure auditd service is enabled and started
+  ansible.builtin.systemd:
+    name: auditd
+    enabled: true
+    state: started
+  when: not (ansible_check_mode and auditd_package_result is changed)

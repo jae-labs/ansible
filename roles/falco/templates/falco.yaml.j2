@@ -1,0 +1,35 @@
+# Configured via Ansible
+rules_files:
+{% for rules_file in falco_rules_files %}
+  - {{ rules_file }}
+{% endfor %}
+
+{% if falco_load_plugins is defined and falco_load_plugins %}
+load_plugins:
+{{ falco_load_plugins | to_nice_yaml(indent=2) | indent(2, first=true) }}
+{% endif %}
+
+{% if falco_plugins is defined and falco_plugins %}
+plugins:
+{{ falco_plugins | to_nice_yaml(indent=2) | indent(2, first=true) }}
+{% endif %}
+
+engine:
+  kind: modern_ebpf
+
+file_output:
+  enabled: true
+  keep_alive: false
+  filename: "{{ falco_log_path }}"
+
+json_output: true
+syslog_output:
+  enabled: true
+
+stdout_output:
+  enabled: true
+
+webserver:
+  # falcoctl artifact follow uses /versions to select compatible rules updates.
+  enabled: {{ falco_webserver_enabled | bool | to_json }}
+  listen_port: {{ falco_webserver_listen_port }}

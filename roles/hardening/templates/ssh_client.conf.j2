@@ -1,0 +1,21 @@
+#jinja2: trim_blocks:True, lstrip_blocks:True
+{{ ansible_managed | comment }}
+Host *
+  AddressFamily {{ 'any' if hardening_ipv6_enabled else 'inet' }}
+  Port {{ hardening_ssh_client_port }}
+  BatchMode no
+  CheckHostIP yes
+  StrictHostKeyChecking ask
+  {{ 'Ciphers ' ~ hardening_ssh_ciphers|join(',') if hardening_ssh_ciphers else '#Ciphers' }}
+  {{ 'MACs ' ~ hardening_ssh_macs|join(',') if hardening_ssh_macs else '#MACs' }}
+  {{ 'KexAlgorithms ' ~ hardening_ssh_kex|join(',') if hardening_ssh_kex else '#KexAlgorithms' }}
+  {{ 'HostKeyAlgorithms ' ~ hardening_ssh_client_host_key_algorithms|join(',') if hardening_ssh_client_host_key_algorithms else '#HostKeyAlgorithms' }}
+  ForwardAgent no
+  ForwardX11 no
+  Tunnel no
+  PermitLocalCommand no
+  HostbasedAuthentication no
+  PasswordAuthentication {{ 'yes' if hardening_ssh_client_password_login else 'no' }}
+  GSSAPIAuthentication {{ 'yes' if hardening_ssh_gssapi_support else 'no' }}
+  GSSAPIDelegateCredentials {{ 'yes' if hardening_ssh_gssapi_delegation else 'no' }}
+  Compression {{ 'yes' if hardening_ssh_client_compression else 'no' }}

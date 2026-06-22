@@ -1,0 +1,67 @@
+---
+- name: Get OpenSSH version
+  ansible.builtin.command: ssh -V
+  register: hardening_ssh_version_raw
+  changed_when: false
+  check_mode: false
+
+- name: Parse OpenSSH version
+  ansible.builtin.set_fact:
+    hardening_ssh_version: "{{ hardening_ssh_version_raw.stderr | regex_replace('.*_([0-9]*.[0-9]).*', '\\1') }}"
+
+- name: Generate RSA host key
+  community.crypto.openssh_keypair:
+    state: present
+    type: rsa
+    size: "{{ hardening_ssh_host_rsa_key_size }}"
+    path: "{{ hardening_ssh_host_keys_dir }}/ssh_host_rsa_key"
+    force: false
+    regenerate: partial_idempotence
+
+- name: Select default host key files
+  ansible.builtin.set_fact:
+    hardening_ssh_host_key_files:
+      - "{{ hardening_ssh_host_keys_dir }}/ssh_host_rsa_key"
+      - "{{ hardening_ssh_host_keys_dir }}/ssh_host_ecdsa_key"
+      - "{{ hardening_ssh_host_keys_dir }}/ssh_host_ed25519_key"
+
+- name: Select default ciphers
+  ansible.builtin.set_fact:
+    hardening_ssh_ciphers: "{{ hardening_ssh_ciphers_66_default }}"
+    hardening_ssh_macs: "{{ hardening_ssh_macs_76_default }}"
+    hardening_ssh_kex: "{{ hardening_ssh_kex_85_default }}"
+
+- name: Set SSH host key permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ hardening_ssh_host_key_files }}"
+  failed_when: false
+
+- name: Create revoked keys file
+  ansible.builtin.template:
+    src: revoked_keys.j2
+    dest: /etc/ssh/revoked_keys
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Reload hardening ssh
+
+- name: Remove weak DH moduli
+  ansible.builtin.shell: >
+    awk '$5 >= {{ hardening_ssh_moduli_minimum }}' {{ hardening_ssh_moduli_file }}
+    > {{ hardening_ssh_moduli_file }}.new &&
+    if ! cmp -s {{ hardening_ssh_moduli_file }} {{ hardening_ssh_moduli_file }}.new; then
+      mv {{ hardening_ssh_moduli_file }}.new {{ hardening_ssh_moduli_file }};
+      echo changed;
+    else
+      rm -f {{ hardening_ssh_moduli_file }}.new;
+    fi
+  args:
+    executable: /bin/bash
+  register: hardening_moduli_prune
+  changed_when: "'changed' in hardening_moduli_prune.stdout"
+  failed_when: false
+  notify: Reload hardening ssh

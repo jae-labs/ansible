@@ -1,0 +1,44 @@
+---
+- name: Ensure cron service is enabled
+  ansible.builtin.systemd:
+    name: cron
+    state: started
+    enabled: true
+
+- name: Enforce cron permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+    state: "{{ item.state }}"
+  loop:
+    - { path: /etc/crontab, mode: "0600", state: file }
+    - { path: /etc/cron.hourly, mode: "0700", state: directory }
+    - { path: /etc/cron.daily, mode: "0700", state: directory }
+    - { path: /etc/cron.weekly, mode: "0700", state: directory }
+    - { path: /etc/cron.monthly, mode: "0700", state: directory }
+    - { path: /etc/cron.d, mode: "0700", state: directory }
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Remove cron.deny
+  ansible.builtin.file:
+    path: /etc/cron.deny
+    state: absent
+
+- name: Ensure cron.allow exists with restrictive permissions
+  ansible.builtin.copy:
+    dest: /etc/cron.allow
+    content: "{{ hardening_cron_allow_users | join('\n') ~ '\n' }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Ensure at.allow exists with restrictive permissions
+  ansible.builtin.copy:
+    dest: /etc/at.allow
+    content: "{{ hardening_at_allow_users | join('\n') ~ '\n' }}"
+    owner: root
+    group: root
+    mode: "0640"

@@ -1,0 +1,8 @@
+# Pinned tool versions for local development.
+# CI pins its own versions in .github/workflows/ci.yml;
+# this file keeps local parity.
+
+[tools]
+python = "3.14"
+"pipx:ansible-lint" = "26.4.0"
+lefthook = "2.1.9"
